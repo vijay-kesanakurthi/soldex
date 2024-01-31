@@ -2,14 +2,49 @@ import { useState, useEffect, useRef } from "react";
 import "./exchange-card.scss";
 import Modal from "../../modal/modal";
 
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import React from "react";
+import { Connection, VersionedTransaction } from "@solana/web3.js";
+
 const Card = () => {
+  const assets = [
+    {
+      name: "SOL",
+      mint: "So11111111111111111111111111111111111111112",
+      decimals: 9,
+    },
+    {
+      name: "USDC",
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      decimals: 6,
+    },
+    {
+      name: "BONK",
+      mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+      decimals: 5,
+    },
+    {
+      name: "WIF",
+      mint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+      decimals: 6,
+    },
+  ];
+
+  const [fromAsset, setFromAsset] = useState(assets[0]);
+  const [toAsset, setToAsset] = useState(assets[1]);
+
   const [open1stCoin, setOpen1stCoin] = useState(false);
   const [open2ndCoin, setOpen2ndCoin] = useState(false);
-  const [fromCurrency, setFromCurrency] = useState("USDT");
-  const [toCurrency, setToCurrency] = useState("ETH");
+
   const [selectButton, setSelectButton] = useState("Swap");
-  const [firstdata, set1stInputData] = useState<any>(null);
-  const [seconddata, set2ndInputData] = useState<any>(null);
+  const { publicKey } = useWallet();
+  const wallet = useWallet();
+  const connection = new Connection(
+    "https://mainnet.helius-rpc.com/?api-key=3f33bb5c-708a-4f5f-b9b3-8794bbdd58f2"
+  );
+
+  const [quote, setQuote] = useState<any>(null);
 
   const firstCoinRef = useRef<HTMLDivElement>(null);
   const secondCoinRef = useRef<HTMLDivElement>(null);
@@ -43,11 +78,11 @@ const Card = () => {
   };
 
   const swapHandler = () => {
-    const temp = fromCurrency;
-    setFromCurrency(toCurrency);
-    setToCurrency(temp);
-    setOpen2ndCoin(false);
+    const tempAsset = fromAsset;
+    setFromAsset(toAsset);
+    setToAsset(tempAsset);
     setOpen1stCoin(false);
+    setOpen2ndCoin(false);
   };
 
   const handleSecondInput = () => {
@@ -55,31 +90,165 @@ const Card = () => {
     setOpen2ndCoin((prev) => !prev);
   };
 
-  const handle1stInputData = (data: any) => {
-    set1stInputData(data);
+  useEffect(() => {
+    quoteResponse();
+  }, [fromAsset, toAsset]);
+
+  const handle1stInputData = async (data: number) => {
+    if (toAsset.mint === assets[data].mint) {
+      const tempAsset = fromAsset;
+      setFromAsset(toAsset);
+      setToAsset(tempAsset);
+    } else {
+      setFromAsset(assets[data]);
+    }
+    console.log(data);
   };
-  const handleendInputData = (data: any) => {
-    set2ndInputData(data);
+  const handleendInputData = (data: number) => {
+    if (fromAsset.mint === assets[data].mint) {
+      const tempAsset = fromAsset;
+      setFromAsset(toAsset);
+      setToAsset(tempAsset);
+    } else {
+      setToAsset(assets[data]);
+    }
+    console.log(data);
   };
-  const handleOpen = (option: any) => {
+  const handleOpen = (option: string) => {
     setSelectButton(option);
   };
-  const dummyData = ["USDT", "ETH", "BNB", "BTC", "STX"];
+
+  const quoteResponse = async () => {
+    try {
+      if (getInputAmount().toString() === "NaN") {
+        return;
+      }
+      const quoteResponse = await (
+        await fetch(
+          `https://quote-api.jup.ag/v6/quote?inputMint=${
+            fromAsset.mint
+          }&outputMint=${toAsset.mint}&amount=${
+            getInputAmount() * 10 ** fromAsset.decimals
+          }&slippageBps=50`
+        )
+      )
+        .json()
+        .catch((err) => {
+          console.log(err);
+          setQuote(null);
+        });
+      console.log(quoteResponse);
+      getOutputAmount(quoteResponse.outAmount / 10 ** toAsset.decimals);
+      setQuote(quoteResponse);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  async function signAndSendTransaction() {
+    if (!wallet.connected || !wallet?.signTransaction) {
+      console.error(
+        "Wallet is not connected or does not support signing transactions"
+      );
+      return;
+    }
+    console.log("quote", quote);
+    console.log("wallet", wallet);
+    console.log("publicKey", publicKey?.toString());
+    console.log("connection", connection);
+
+    // get serialized transactions for the swap
+    const { swapTransaction } = await (
+      await fetch("https://quote-api.jup.ag/v6/swap", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          quoteResponse: quote,
+          userPublicKey: wallet.publicKey?.toString(),
+          wrapAndUnwrapSol: true,
+          // feeAccount is optional. Use if you want to charge a fee.  feeBps must have been passed in /quote API.
+          // feeAccount: "fee_account_public_key"
+        }),
+      })
+    ).json();
+
+    console.log("swapTransaction", swapTransaction);
+
+    try {
+      const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
+      const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+      const signedTransaction = await wallet.signTransaction(transaction);
+
+      const rawTransaction = signedTransaction.serialize();
+      const txid = await connection.sendRawTransaction(rawTransaction, {
+        skipPreflight: true,
+        maxRetries: 2,
+      });
+
+      const latestBlockHash = await connection.getLatestBlockhash();
+      await connection.confirmTransaction(
+        {
+          blockhash: latestBlockHash.blockhash,
+          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+          signature: txid,
+        },
+        "confirmed"
+      );
+
+      console.log(`https://solscan.io/tx/${txid}`);
+    } catch (error) {
+      console.error("Error signing or sending the transaction:", error);
+    }
+  }
+
+  // State to store the timeout ID
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout>();
+
+  const handleInputChange = () => {
+    // Clear the previous timeout
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+
+    // Set a new timeout to invoke quoteResponse after 500 milliseconds (adjust as needed)
+    const newTimeoutId = setTimeout(() => {
+      quoteResponse();
+    }, 500);
+
+    // Update the timeoutId state
+    setTimeoutId(newTimeoutId);
+  };
+
+  function getInputAmount() {
+    const inputAmount = document.getElementById(
+      "fromAssetInput"
+    ) as HTMLInputElement;
+    return Number(inputAmount.value);
+  }
+
+  function getOutputAmount(amount: number) {
+    const outputAmount = document.getElementById(
+      "toAssetInput"
+    ) as HTMLInputElement;
+    outputAmount.value = amount.toString();
+  }
 
   return (
     <>
       {open2ndCoin && (
         <Modal
-          ModelData={dummyData}
           onSetData={handleendInputData}
           closeHandler={() => setOpen2ndCoin(false)}
+          assets={assets}
         />
       )}
       {open1stCoin && (
         <Modal
-          ModelData={dummyData}
           onSetData={handle1stInputData}
           closeHandler={() => setOpen1stCoin(false)}
+          assets={assets}
         />
       )}
       <div
@@ -150,7 +319,7 @@ const Card = () => {
                     <div className="text-base font-medium text-white">
                       {/* {fromCurrency || "Select Fiat"}
                        */}
-                      {firstdata ? firstdata : "USDT"}
+                      {fromAsset.name}
                     </div>
                   </div>
                   <svg
@@ -172,8 +341,10 @@ const Card = () => {
                 <input
                   name="fiat"
                   type="number"
+                  id="fromAssetInput"
                   required
                   className="outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl"
+                  onChange={handleInputChange}
                 />
               </div>
               <div className="text-white my-1 mx-2 w-full"></div>
@@ -210,7 +381,7 @@ const Card = () => {
                   <div className="flex items-center">
                     <div className="pr-2"></div>
                     <div className="text-base font-medium text-white">
-                      {seconddata ? seconddata : "BNB"}
+                      {toAsset.name}
                     </div>
                   </div>
                   <svg
@@ -231,20 +402,57 @@ const Card = () => {
                 <input
                   name="fiat"
                   type="number"
+                  id="toAssetInput"
                   className="outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl"
                   disabled
                 />
                 {/* {open2ndCoin && <Modal />} */}
                 <div></div>
               </div>
+              {quote && quote.routePlan && (
+                <div className="flex flex-row items-center text-white justify-between mt-3">
+                  {/* <label className="text-sm font-medium text-white">
+                    Route
+                  </label> */}
+                  <div className="flex items-center"></div>
+                  <div className="flex items-center">
+                    {quote &&
+                      quote.routePlan &&
+                      quote.routePlan.map((item: any, index: number) => (
+                        <React.Fragment key={index}>
+                          <label className="text-sm font-medium text-white">
+                            {item.swapInfo.label}({item.percent}%)
+                          </label>
+                          {index < quote.routePlan.length - 1 && (
+                            <span className="mx-2 text-white">&#8594;</span>
+                          )}
+                        </React.Fragment>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               <div className="inputBox flexCenter">
-                <button
-                  type="button"
-                  id="exchangeBtn"
-                  className="border-2 p-auto"
-                >
-                  Connect Wallet
-                </button>
+                {publicKey ? (
+                  <button
+                    type="button"
+                    id="exchangeBtn"
+                    className="border-2 p-auto"
+                    onClick={async () => {
+                      // connect to wallet if not connected else swap
+                      if (publicKey) {
+                        console.log("swap");
+                        await signAndSendTransaction();
+                      }
+                    }}
+                  >
+                    Swap
+                  </button>
+                ) : (
+                  <div className="mt-5">
+                    <WalletMultiButton className="border-2 p-auto" />
+                  </div>
+                )}
               </div>
             </form>
             <div className="Card rounded-3xl flex visible flex-col mt-10 p-2 w-[min(456px,100%)] self-center bg-cyberpunk-card-bg">
@@ -454,9 +662,7 @@ const Card = () => {
                   <div className="flex items-center">
                     <div className="pr-2"></div>
                     <div className="text-base font-medium text-white">
-                      {/* {fromCurrency || "Select Fiat"}
-                       */}
-                      {firstdata}
+                      {fromAsset.name}
                     </div>
                   </div>
                   <svg
@@ -579,7 +785,7 @@ const Card = () => {
                   <div className="flex items-center">
                     <div className="pr-2"></div>
                     <div className="text-base font-medium text-white">
-                      {seconddata}
+                      {toAsset.name}
                     </div>
                   </div>
                   <svg

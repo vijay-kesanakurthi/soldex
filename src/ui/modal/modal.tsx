@@ -1,20 +1,17 @@
-import { FC, useEffect, useState } from "react";
+import { FC } from "react";
 import "./modal.scss";
+
 interface Model {
   closeHandler: () => void;
-  onSetData: (data: string) => void;
-  ModelData: Array<string>;
+  onSetData: (data: number) => void;
+  assets: Array<any>;
 }
-const Modal: FC<Model> = ({ closeHandler, onSetData, ModelData }) => {
-  const [data, setData] = useState(ModelData.length > 0 ? ModelData[0] : "");
-  onSetData(data);
-  useEffect(() => {
-    onSetData(data);
-  }, [data]);
-  const handleClick = async (e: string) => {
-    await setData(e);
+const Modal: FC<Model> = ({ closeHandler, onSetData, assets }) => {
+  const handleClick = async (e: number) => {
+    onSetData(e);
     closeHandler();
   };
+
   return (
     <div className="h-lvh fixed left-0 top-0 bottom-0 z-50 flexCenter w-full">
       <div className="flex flex-col  rounded-3xl mobile:rounded-none w-[min(468px,100vw)] mobile:w-full lg:h-[min(480px,100vh)] border-1.5 border-[rgba(99,130,202,0.2)] bg-cyberpunk-card-bg shadow-cyberpunk-card">
@@ -75,7 +72,7 @@ const Modal: FC<Model> = ({ closeHandler, onSetData, ModelData }) => {
               </div>
             </div>
           </div>
-          <div className="text-xs font-medium text-[rgba(171,196,255,.5)] my-3">
+          {/* <div className="text-xs font-medium text-[rgba(171,196,255,.5)] my-3">
             Popular tokens
           </div>
           <div className="Row flex justify-between">
@@ -159,7 +156,7 @@ const Modal: FC<Model> = ({ closeHandler, onSetData, ModelData }) => {
                 USDC
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
         <div className="mobile:mx-6 border-t-1.5 border-[rgba(171,196,255,0.2)]" />
         <div className="Col flex flex-col flex-1 overflow-hidden border-b-1.5 py-3 border-[rgba(171,196,255,0.2)]">
@@ -175,11 +172,11 @@ const Modal: FC<Model> = ({ closeHandler, onSetData, ModelData }) => {
             className="Col List flex-grow flex flex-col px-4 mobile:px-2 mx-2 gap-2 overflow-auto my-2"
             style={{ contentVisibility: "auto" }}
           >
-            {ModelData?.map((item, i) => (
+            {assets?.map((item, i) => (
               <div key={i}>
                 <div
                   className="Row flex clickable no-clicable-transform-effect clickable-mask-offset-2 before:bg-[rgba(0,0,0,0.2)]"
-                  onClick={() => handleClick(item)}
+                  onClick={() => handleClick(i)}
                 >
                   <div className="group w-full">
                     <div className="Row flex group w-full gap-4 justify-between items-center p-2">
@@ -203,12 +200,12 @@ const Modal: FC<Model> = ({ closeHandler, onSetData, ModelData }) => {
                           <div className="Row flex">
                             <div className="Row flex items-center gap-1">
                               <div className="text-base  max-w-[7em] overflow-hidden text-ellipsis  font-normal text-[#ABC4FF]">
-                                {item}
+                                {item.name}
                               </div>
                             </div>
                           </div>
                           <div className="text-xs  max-w-[12em] overflow-hidden text-ellipsis whitespace-nowrap  font-medium text-[rgba(171,196,255,.5)]">
-                            Raydium
+                            {item.name}
                           </div>
                         </div>
                       </div>
@@ -220,7 +217,9 @@ const Modal: FC<Model> = ({ closeHandler, onSetData, ModelData }) => {
                               className="relative"
                             >
                               <div className="opacity-100 transition">
-                                4k3Dy...rkX6R
+                                {item.mint.slice(0, 4) +
+                                  "..." +
+                                  item.mint.slice(-4)}
                               </div>
                               <div className="absolute inset-0 opacity-0 pointer-events-none transition flex items-center justify-center">
                                 Copied
