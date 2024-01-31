@@ -7,6 +7,8 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import React from "react";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
 
+import { Buffer } from "buffer";
+
 const Card = () => {
   const assets = [
     {
