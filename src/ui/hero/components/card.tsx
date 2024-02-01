@@ -161,6 +161,8 @@ const Card = () => {
           wrapAndUnwrapSol: true,
           // feeAccount is optional. Use if you want to charge a fee.  feeBps must have been passed in /quote API.
           // feeAccount: "fee_account_public_key"
+          dynamicComputeUnitLimit: true,
+          priotitizationFeeLamports: 50000000,
         }),
       })
     ).json();
@@ -459,8 +461,12 @@ const Card = () => {
                     onClick={async () => {
                       // connect to wallet if not connected else swap
                       if (loading) return;
-                      if (maxBalance < getInputAmount()) {
-                        toast.error("Insufficient balance");
+                      // if (maxBalance < getInputAmount()) {
+                      //   toast.error("Insufficient balance");
+                      //   return;
+                      // }
+                      if (quote?.routePlan.length === 0) {
+                        toast.error("No route found");
                         return;
                       }
                       if (publicKey) {
