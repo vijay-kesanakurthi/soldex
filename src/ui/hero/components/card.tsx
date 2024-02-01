@@ -1,40 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import "./exchange-card.scss";
 import Modal from "../../modal/modal";
-
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import React from "react";
-import { Connection, VersionedTransaction } from "@solana/web3.js";
-
+import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
+import { coins, CoinModel } from "./coins";
 import { Buffer } from "buffer";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import Liquidity from "./liquidity";
 
 const Card = () => {
-  const assets = [
-    {
-      name: "SOL",
-      mint: "So11111111111111111111111111111111111111112",
-      decimals: 9,
-    },
-    {
-      name: "USDC",
-      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-      decimals: 6,
-    },
-    {
-      name: "BONK",
-      mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
-      decimals: 5,
-    },
-    {
-      name: "WIF",
-      mint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
-      decimals: 6,
-    },
-  ];
-
-  const [fromAsset, setFromAsset] = useState(assets[0]);
-  const [toAsset, setToAsset] = useState(assets[1]);
+  const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
+  const [toAsset, setToAsset] = useState<CoinModel>(coins[1]);
 
   const [open1stCoin, setOpen1stCoin] = useState(false);
   const [open2ndCoin, setOpen2ndCoin] = useState(false);
@@ -47,10 +26,10 @@ const Card = () => {
   );
 
   const [quote, setQuote] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const firstCoinRef = useRef<HTMLDivElement>(null);
   const secondCoinRef = useRef<HTMLDivElement>(null);
-  ///to hide dropdown when clicked outside
   const handleClickOutside = (event: MouseEvent) => {
     if (
       firstCoinRef.current &&
@@ -97,22 +76,22 @@ const Card = () => {
   }, [fromAsset, toAsset]);
 
   const handle1stInputData = async (data: number) => {
-    if (toAsset.mint === assets[data].mint) {
+    if (toAsset.mintAddress === coins[data].mintAddress) {
       const tempAsset = fromAsset;
       setFromAsset(toAsset);
       setToAsset(tempAsset);
     } else {
-      setFromAsset(assets[data]);
+      setFromAsset(coins[data]);
     }
     console.log(data);
   };
   const handleendInputData = (data: number) => {
-    if (fromAsset.mint === assets[data].mint) {
+    if (fromAsset.mintAddress === coins[data].mintAddress) {
       const tempAsset = fromAsset;
       setFromAsset(toAsset);
       setToAsset(tempAsset);
     } else {
-      setToAsset(assets[data]);
+      setToAsset(coins[data]);
     }
     console.log(data);
   };
@@ -128,8 +107,8 @@ const Card = () => {
       const quoteResponse = await (
         await fetch(
           `https://quote-api.jup.ag/v6/quote?inputMint=${
-            fromAsset.mint
-          }&outputMint=${toAsset.mint}&amount=${
+            fromAsset.mintAddress
+          }&outputMint=${toAsset.mintAddress}&amount=${
             getInputAmount() * 10 ** fromAsset.decimals
           }&slippageBps=50`
         )
@@ -154,6 +133,7 @@ const Card = () => {
       );
       return;
     }
+    setLoading(true);
     console.log("quote", quote);
     console.log("wallet", wallet);
     console.log("publicKey", publicKey?.toString());
@@ -198,10 +178,14 @@ const Card = () => {
         },
         "confirmed"
       );
+      toast.success("Token swapped successfully");
 
       console.log(`https://solscan.io/tx/${txid}`);
     } catch (error) {
+      toast.error("Error signing or sending the transaction");
       console.error("Error signing or sending the transaction:", error);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -237,20 +221,30 @@ const Card = () => {
     outputAmount.value = amount.toString();
   }
 
+  async function getWalletBalanceOfAsset(assetAddress: string) {
+    if (!wallet.publicKey) return 0;
+    const balance = await connection.getTokenAccountBalance(
+      new PublicKey(assetAddress),
+      "confirmed"
+    );
+    console.log(balance);
+    return balance;
+  }
+
   return (
     <>
       {open2ndCoin && (
         <Modal
           onSetData={handleendInputData}
           closeHandler={() => setOpen2ndCoin(false)}
-          assets={assets}
+          assets={coins}
         />
       )}
       {open1stCoin && (
         <Modal
           onSetData={handle1stInputData}
           closeHandler={() => setOpen1stCoin(false)}
-          assets={assets}
+          assets={coins}
         />
       )}
       <div
@@ -317,11 +311,16 @@ const Card = () => {
                   className="min-w-28 flexBetween cursor-pointer select-none "
                 >
                   <div className="flex items-center">
+                    <img
+                      className="Image h-8 w-8 rounded-full overflow-hidden transition-transform transform scale-[.7]"
+                      src={fromAsset.icon}
+                      alt={fromAsset.tokenSymbol}
+                    />
                     <div className="pr-2"></div>
                     <div className="text-base font-medium text-white">
                       {/* {fromCurrency || "Select Fiat"}
                        */}
-                      {fromAsset.name}
+                      {fromAsset.tokenSymbol}
                     </div>
                   </div>
                   <svg
@@ -381,9 +380,14 @@ const Card = () => {
                   className="min-w-28 flexBetween cursor-pointer select-none "
                 >
                   <div className="flex items-center">
+                    <img
+                      className="Image h-8 w-8 rounded-full overflow-hidden transition-transform transform scale-[.7]"
+                      src={toAsset.icon}
+                      alt={toAsset.tokenSymbol}
+                    />
                     <div className="pr-2"></div>
                     <div className="text-base font-medium text-white">
-                      {toAsset.name}
+                      {toAsset.tokenSymbol}
                     </div>
                   </div>
                   <svg
@@ -442,13 +446,21 @@ const Card = () => {
                     className="border-2 p-auto"
                     onClick={async () => {
                       // connect to wallet if not connected else swap
+                      if (loading) return;
                       if (publicKey) {
                         console.log("swap");
                         await signAndSendTransaction();
                       }
                     }}
                   >
-                    Swap
+                    {loading ? (
+                      <div
+                        className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
+                        role="status"
+                      ></div>
+                    ) : (
+                      "Swap"
+                    )}
                   </button>
                 ) : (
                   <div className="mt-5">
@@ -648,238 +660,14 @@ const Card = () => {
           </>
         )}
         {selectButton === "Liquidity" && (
-          <>
-            <form
-              action=""
-              id="form"
-              className="w-full pb-10 pt-8 px-6 rounded-3xl  select-none"
-            >
-              <div className="text-base text-gray-300"></div>
-
-              <div className="input flexBetween gap-4 h-20 px-4 rounded-xl ">
-                <div
-                  onClick={handlefirstInput}
-                  className="min-w-28 flexBetween cursor-pointer select-none "
-                >
-                  <div className="flex items-center">
-                    <div className="pr-2"></div>
-                    <div className="text-base font-medium text-white">
-                      {fromAsset.name}
-                    </div>
-                  </div>
-                  <svg
-                    name="chevron-down"
-                    className={open1stCoin ? " rotate-180" : ""}
-                    width="24px"
-                    height="24px"
-                    viewBox="0 0 24 24"
-                    fill="white"
-                  >
-                    <path
-                      d="M16.293 9.29297L12 13.586L7.70697 9.29297L6.29297 10.707L12 16.414L17.707 10.707L16.293 9.29297Z"
-                      fill="white"
-                    />
-                  </svg>
-                </div>
-                <div className="h-8 w-[1px] bg-[rgba(255,255,255,0.2)]" />
-
-                <input
-                  name="fiat"
-                  type="number"
-                  required
-                  className="outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl"
-                />
-              </div>
-              <div className="text-white my-1 mx-2 w-full"></div>
-              <div className="relative h-8 my-4">
-                <div className="Row flex absolute h-full items-center transition-all left-4">
-                  <div className="Icon grid h-max w-max p-1 text-[#39D0D8]">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth="1.5"
-                      stroke="currentColor"
-                      aria-hidden="true"
-                      className="select-none h-6 w-6"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 4.5v15m7.5-7.5h-15"
-                      />
-                    </svg>
-                  </div>
-                  <div className="opacity-100">
-                    <div
-                      className="transition-all duration-200 ease overflow-hidden"
-                      style={{ transition: "all 200ms ease 0s" }}
-                    >
-                      <div className="Row flex font-medium text-sm text-[#ABC4FF] w-max">
-                        1 RAY ≈ 0.013059 SOL
-                        <div className="ml-2 clickable">⇋</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="Row flex absolute right-0 items-center">
-                  <div className="Icon grid h-max w-max p-2 frosted-glass frosted-glass-teal rounded-full mr-4 clickable text-[#39D0D8] select-none">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth="1.5"
-                      stroke="currentColor"
-                      aria-hidden="true"
-                      className="select-none h-4 w-4"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-                      />
-                    </svg>
-                  </div>
-                  <div className="clickable">
-                    <div>
-                      <div className="PopoverButton ">
-                        <div className="w-full h-full rounded clickable clickable-filter-effect">
-                          <svg width={36} height={36} viewBox="0 0 36 36">
-                            <circle
-                              r={9}
-                              cx="50%"
-                              cy="50%"
-                              fill="transparent"
-                              style={{ strokeWidth: 3, stroke: "#ffffff2e" }}
-                            />
-                            <circle
-                              id="bar"
-                              r={9}
-                              cx="50%"
-                              cy="50%"
-                              fill="transparent"
-                              strokeDasharray="56.548667764616276"
-                              strokeDashoffset="8.482300164692383"
-                              style={{
-                                strokeWidth: 3,
-                                stroke: "#92e1ffd9",
-                                transform: "rotate(-90deg)",
-                                transformOrigin: "center",
-                                strokeLinecap: "round",
-                                transition: "200ms",
-                              }}
-                            />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-base text-gray-300 pt-1 "></div>
-
-              <div className="input flexBetween gap-4 h-20 px-4 rounded-xl ">
-                <div
-                  onClick={handleSecondInput}
-                  className="min-w-28 flexBetween cursor-pointer select-none "
-                >
-                  <div className="flex items-center">
-                    <div className="pr-2"></div>
-                    <div className="text-base font-medium text-white">
-                      {toAsset.name}
-                    </div>
-                  </div>
-                  <svg
-                    name="chevron-down"
-                    className={open2ndCoin ? " rotate-180" : ""}
-                    width="24px"
-                    height="24px"
-                    viewBox="0 0 24 24"
-                    fill="white"
-                  >
-                    <path
-                      d="M16.293 9.29297L12 13.586L7.70697 9.29297L6.29297 10.707L12 16.414L17.707 10.707L16.293 9.29297Z"
-                      fill="white"
-                    />
-                  </svg>
-                </div>
-                <div className="h-8 w-[1px] bg-[rgba(255,255,255,0.2)]" />
-                <input
-                  name="fiat"
-                  type="number"
-                  className="outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl"
-                  disabled
-                />
-                {/* {open2ndCoin && <Modal />} */}
-                <div></div>
-              </div>
-              <div className="inputBox flexCenter">
-                <button
-                  type="button"
-                  id="exchangeBtn"
-                  className="border-2 p-auto"
-                >
-                  Enter an amount
-                </button>
-              </div>
-            </form>
-            <div className="mt-12 max-w-[456px] self-center">
-              <div className="mb-6 text-xl font-medium text-white">
-                Your Liquidity
-              </div>
-              <div className="Card rounded-3xl p-6 mt-6 mobile:py-5 mobile:px-3 bg-cyberpunk-card-bg">
-                <div className="Col List overflow-y-scroll flex flex-col gap-6 mobile:gap-5" />
-                <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
-                  If you staked your LP tokens in a farm, unstake them to see
-                  them here
-                </div>
-              </div>
-            </div>
-            <div className="mt-12 max-w-[456px] self-center">
-              <div className="mb-6 text-xl font-medium text-white">
-                Create Pool
-              </div>
-              <div className="Card rounded-3xl p-6 mt-6 mobile:py-5 mobile:px-3 bg-cyberpunk-card-bg">
-                <div className="Row flex gap-4">
-                  <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
-                    Create a liquidity pool on Raydium that can be traded on the
-                    swap interface.{/* */}{" "}
-                    <a
-                      tabIndex={0}
-                      rel="nofollow noopener noreferrer"
-                      target="_blank"
-                      className="Link clickable text-[rgba(171,196,255)] hover:underline"
-                      href="https://raydium.gitbook.io/raydium/permissionless/creating-a-pool"
-                    >
-                      Read the guide
-                    </a>{" "}
-                    {/* */}before attempting.
-                  </div>
-                  <button className="Button select-none justify-center gap-2 px-4 py-2.5 rounded-xl mobile:rounded-lg font-medium whitespace-nowrap appearance-none bg-formkit-thumb text-formkit-thumb-text-normal clickable clickable-filter-effect flex items-center frosted-glass-teal opacity-80">
-                    <div className="Icon grid h-max w-max mr-2">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth="1.5"
-                        stroke="currentColor"
-                        aria-hidden="true"
-                        className="select-none h-6 w-6"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 4.5v15m7.5-7.5h-15"
-                        />
-                      </svg>
-                    </div>
-                    <div>Create Pool</div>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
+          <Liquidity
+            fromAsset={fromAsset}
+            toAsset={toAsset}
+            handleSecondInput={handleSecondInput}
+            handlefirstInput={handlefirstInput}
+            open2ndCoin={open2ndCoin}
+            open1stCoin={open1stCoin}
+          />
         )}
       </div>
     </>

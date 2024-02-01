@@ -1,10 +1,11 @@
 import { FC } from "react";
 import "./modal.scss";
+import { CoinModel } from "../hero/components/coins";
 
 interface Model {
   closeHandler: () => void;
   onSetData: (data: number) => void;
-  assets: Array<any>;
+  assets: Array<CoinModel>;
 }
 const Modal: FC<Model> = ({ closeHandler, onSetData, assets }) => {
   const handleClick = async (e: number) => {
@@ -191,8 +192,8 @@ const Modal: FC<Model> = ({ closeHandler, onSetData, assets }) => {
                           >
                             <img
                               className="Image h-8 w-8 rounded-full overflow-hidden transition-transform transform scale-[.7]"
-                              src="https://img.raydium.io/icon/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R.png"
-                              alt="4k3Dyjzvzp8eMZWUXbBC"
+                              src={item.icon}
+                              alt={item.tokenSymbol}
                             />
                           </div>
                         </div>
@@ -200,12 +201,12 @@ const Modal: FC<Model> = ({ closeHandler, onSetData, assets }) => {
                           <div className="Row flex">
                             <div className="Row flex items-center gap-1">
                               <div className="text-base  max-w-[7em] overflow-hidden text-ellipsis  font-normal text-[#ABC4FF]">
-                                {item.name}
+                                {item.tokenSymbol}
                               </div>
                             </div>
                           </div>
                           <div className="text-xs  max-w-[12em] overflow-hidden text-ellipsis whitespace-nowrap  font-medium text-[rgba(171,196,255,.5)]">
-                            {item.name}
+                            {item.tokenName}
                           </div>
                         </div>
                       </div>
@@ -217,9 +218,9 @@ const Modal: FC<Model> = ({ closeHandler, onSetData, assets }) => {
                               className="relative"
                             >
                               <div className="opacity-100 transition">
-                                {item.mint.slice(0, 4) +
+                                {item.mintAddress.slice(0, 4) +
                                   "..." +
-                                  item.mint.slice(-4)}
+                                  item.mintAddress.slice(-4)}
                               </div>
                               <div className="absolute inset-0 opacity-0 pointer-events-none transition flex items-center justify-center">
                                 Copied
