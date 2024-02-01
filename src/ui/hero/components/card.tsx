@@ -14,9 +14,14 @@ import Liquidity from "./liquidity";
 const Card = () => {
   const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
   const [toAsset, setToAsset] = useState<CoinModel>(coins[1]);
+  const TOKEN_PROGRAM_ID = new PublicKey(
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  );
 
   const [open1stCoin, setOpen1stCoin] = useState(false);
   const [open2ndCoin, setOpen2ndCoin] = useState(false);
+
+  const [maxBalance, setMaxBalance] = useState<number>(0);
 
   const [selectButton, setSelectButton] = useState("Swap");
   const { publicKey } = useWallet();
@@ -52,6 +57,10 @@ const Card = () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    getAllTokensInWallet();
+  }, [publicKey]);
 
   const handlefirstInput = () => {
     setOpen2ndCoin(false);
@@ -221,14 +230,12 @@ const Card = () => {
     outputAmount.value = amount.toString();
   }
 
-  async function getWalletBalanceOfAsset(assetAddress: string) {
-    if (!wallet.publicKey) return 0;
-    const balance = await connection.getTokenAccountBalance(
-      new PublicKey(assetAddress),
-      "confirmed"
-    );
-    console.log(balance);
-    return balance;
+  async function getAllTokensInWallet() {
+    if (!publicKey) return;
+    const accounts = await connection.getTokenAccountsByOwner(publicKey!, {
+      programId: TOKEN_PROGRAM_ID,
+    });
+    console.log("getTokenAccountsByOwner:", accounts);
   }
 
   return (
@@ -344,10 +351,15 @@ const Card = () => {
                   type="number"
                   id="fromAssetInput"
                   required
-                  className="outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl"
+                  className={`outline-none h-full font-medium text-base ${"text-white"} p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl`}
                   onChange={handleInputChange}
                 />
               </div>
+              {/* max tokens will be shown here at the end*/}
+              <div className="text-white my-1  w-full text-right">
+                Max: {maxBalance}
+              </div>
+
               <div className="text-white my-1 mx-2 w-full"></div>
               <div className="flexCenter">
                 <div
@@ -409,7 +421,7 @@ const Card = () => {
                   name="fiat"
                   type="number"
                   id="toAssetInput"
-                  className="outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl"
+                  className={`outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl`}
                   disabled
                 />
                 {/* {open2ndCoin && <Modal />} */}
@@ -447,6 +459,10 @@ const Card = () => {
                     onClick={async () => {
                       // connect to wallet if not connected else swap
                       if (loading) return;
+                      if (maxBalance < getInputAmount()) {
+                        toast.error("Insufficient balance");
+                        return;
+                      }
                       if (publicKey) {
                         console.log("swap");
                         await signAndSendTransaction();
