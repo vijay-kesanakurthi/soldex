@@ -11,7 +11,8 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Liquidity from "./liquidity";
 
-import { createJupiterApiClient } from "@jup-ag/api";
+import { createJupiterApiClient, ResponseError } from "@jup-ag/api";
+import { getAllTokensInWallet } from "../../../util/getBalances";
 
 const jupiterQuoteApi = createJupiterApiClient();
 
@@ -31,7 +32,7 @@ const Card = () => {
   const { publicKey } = useWallet();
   const wallet = useWallet();
   const connection = new Connection(
-    "https://mainnet.helius-rpc.com/?api-key=3f33bb5c-708a-4f5f-b9b3-8794bbdd58f2"
+    "https://solana-mainnet.g.alchemy.com/v2/lp_wZX9JFWU0IYpkjGFibIBNEOO60meW"
   );
 
   const [quote, setQuote] = useState<any>(null);
@@ -63,7 +64,8 @@ const Card = () => {
   }, []);
 
   useEffect(() => {
-    getAllTokensInWallet();
+    if (publicKey && connection)
+      getAllTokensInWallet(publicKey, connection).then();
   }, [publicKey]);
 
   const handlefirstInput = () => {
@@ -123,7 +125,7 @@ const Card = () => {
             fromAsset.mintAddress
           }&outputMint=${toAsset.mintAddress}&amount=${
             getInputAmount() * 10 ** fromAsset.decimals
-          }&slippageBps=50`
+          }&slippageBps=500`
         )
       )
         .json()
@@ -148,7 +150,7 @@ const Card = () => {
         inputMint: fromAsset.mintAddress,
         outputMint: toAsset.mintAddress,
         amount: getInputAmount() * 10 ** fromAsset.decimals,
-        slippageBps: 100,
+        slippageBps: 500,
       });
       if (!quoteResponse) {
         setQuote(null);
@@ -161,11 +163,14 @@ const Card = () => {
       getOutputAmount(quoteResponse.outAmount / 10 ** toAsset.decimals);
 
       setQuote(quoteResponse);
-    } catch (err) {
+    } catch (e) {
       setQuote(null);
       getOutputAmount(0);
+      if (e instanceof ResponseError) {
+        console.log(await e.response.json());
+      }
 
-      console.log(err);
+      console.log(e);
     }
   };
 
@@ -224,9 +229,10 @@ const Card = () => {
         skipPreflight: true,
         maxRetries: 2,
       });
+      console.log("txid", txid);
 
       const latestBlockHash = await connection.getLatestBlockhash();
-      await connection.confirmTransaction(
+      const sig = await connection.confirmTransaction(
         {
           blockhash: latestBlockHash.blockhash,
           lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
@@ -234,12 +240,16 @@ const Card = () => {
         },
         "confirmed"
       );
-      toast.success("Token swapped successfully");
+      console.log("sig", sig);
+      toast.success("Token swapped successfully https://solscan.io/tx/${txid}");
 
       console.log(`https://solscan.io/tx/${txid}`);
     } catch (error) {
       toast.error("Error signing or sending the transaction");
       console.error("Error signing or sending the transaction:", error);
+      if (error instanceof ResponseError) {
+        console.log(await error.response.json());
+      }
     } finally {
       setLoading(false);
     }
@@ -275,14 +285,6 @@ const Card = () => {
       "toAssetInput"
     ) as HTMLInputElement;
     outputAmount.value = amount.toString();
-  }
-
-  async function getAllTokensInWallet() {
-    if (!publicKey) return;
-    const accounts = await connection.getTokenAccountsByOwner(publicKey!, {
-      programId: TOKEN_PROGRAM_ID,
-    });
-    console.log("getTokenAccountsByOwner:", accounts);
   }
 
   return (
