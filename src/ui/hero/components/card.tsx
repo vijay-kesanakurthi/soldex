@@ -11,6 +11,10 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Liquidity from "./liquidity";
 
+import { createJupiterApiClient } from "@jup-ag/api";
+
+const jupiterQuoteApi = createJupiterApiClient();
+
 const Card = () => {
   const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
   const [toAsset, setToAsset] = useState<CoinModel>(coins[1]);
@@ -126,6 +130,36 @@ const Card = () => {
     }
   };
 
+  const jupQuoteResponse = async () => {
+    try {
+      if (getInputAmount().toString() === "NaN") {
+        return;
+      }
+      const quoteResponse = await jupiterQuoteApi.quoteGet({
+        inputMint: fromAsset.mintAddress,
+        outputMint: toAsset.mintAddress,
+        amount: getInputAmount() * 10 ** fromAsset.decimals,
+        slippageBps: 100,
+      });
+      if (!quoteResponse) {
+        setQuote(null);
+        getOutputAmount(0);
+
+        console.log("unable to quote");
+        return;
+      }
+      console.log(quoteResponse);
+      getOutputAmount(quoteResponse.outAmount / 10 ** toAsset.decimals);
+
+      setQuote(quoteResponse);
+    } catch (err) {
+      setQuote(null);
+      getOutputAmount(0);
+
+      console.log(err);
+    }
+  };
+
   async function signAndSendTransaction() {
     if (!wallet.connected || !wallet?.signTransaction) {
       console.error(
@@ -140,25 +174,38 @@ const Card = () => {
     console.log("connection", connection);
 
     // get serialized transactions for the swap
-    const { swapTransaction } = await (
-      await fetch("https://quote-api.jup.ag/v6/swap", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          quoteResponse: quote,
-          userPublicKey: wallet.publicKey?.toString(),
-          wrapAndUnwrapSol: true,
-          // feeAccount is optional. Use if you want to charge a fee.  feeBps must have been passed in /quote API.
-          // feeAccount: "fee_account_public_key"
-        }),
-      })
-    ).json();
-
-    console.log("swapTransaction", swapTransaction);
 
     try {
+      // const trans = await (
+      //   await fetch("https://quote-api.jup.ag/v6/swap", {
+      //     method: "POST",
+      //     headers: {
+      //       "Content-Type": "application/json",
+      //     },
+      //     body: JSON.stringify({
+      //       quoteResponse: quote,
+      //       userPublicKey: wallet.publicKey?.toString(),
+      //       wrapAndUnwrapSol: true,
+      //       // feeAccount is optional. Use if you want to charge a fee.  feeBps must have been passed in /quote API.
+      //       // feeAccount: "fee_account_public_key"
+      //       dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
+      //       // custom priority fee
+      //       prioritizationFeeLamports: "auto",
+      //     }),
+      //   })
+      // ).json();
+
+      const key = wallet.publicKey?.toString() || "";
+      const trans = await jupiterQuoteApi.swapPost({
+        swapRequest: {
+          quoteResponse: quote,
+          userPublicKey: key,
+          dynamicComputeUnitLimit: true,
+        },
+      });
+      const swapTransaction = trans.swapTransaction;
+
+      console.log("swapTransaction", trans);
       const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
       const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
       const signedTransaction = await wallet.signTransaction(transaction);
@@ -200,7 +247,7 @@ const Card = () => {
 
     // Set a new timeout to invoke quoteResponse after 500 milliseconds (adjust as needed)
     const newTimeoutId = setTimeout(() => {
-      quoteResponse();
+      jupQuoteResponse();
     }, 500);
 
     // Update the timeoutId state

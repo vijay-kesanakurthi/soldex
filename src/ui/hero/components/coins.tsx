@@ -39,23 +39,17 @@ export const coins: CoinModel[] = [
     mintAddress: "SF3oTvfWzEP3DTwGSvUXRrGTvr75pdZNnBLAH9bzMuX",
     tokenName: "Raydium",
     tokenSymbol: "RAY",
-    icon: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png",
+    icon: "https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg?1612875614",
     decimals: 6,
   },
   {
     mintAddress: "7JF2qJLXK1g6JHvN5NdM3e1HfsWBt9Nv1uTjJ2Mp8edp",
     tokenName: "Orca",
     tokenSymbol: "ORCA",
-    icon: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png",
+    icon: "https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png?1628781615",
     decimals: 6,
   },
-  {
-    mintAddress: "EchesyfXePKdLtoiZSL8pBe8Myagyy8ZRqsACNCFGnvp",
-    tokenName: "Saber",
-    tokenSymbol: "SBR",
-    icon: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png",
-    decimals: 6,
-  },
+ 
 ];
 
 export type { CoinModel };
