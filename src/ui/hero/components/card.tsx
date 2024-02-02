@@ -34,7 +34,7 @@ const Card = () => {
   const { publicKey } = useWallet();
   const wallet = useWallet();
   const connection = new Connection(
-    "https://solana-mainnet.g.alchemy.com/v2/lp_wZX9JFWU0IYpkjGFibIBNEOO60meW"
+    "https://mainnet.helius-rpc.com/?api-key=5839e6aa-7ba3-44d2-99ca-2ead557ec729"
   );
 
   const [quote, setQuote] = useState<any>(null);
@@ -241,6 +241,11 @@ const Card = () => {
       //   })
       // ).json();
       const priorityFee: PriorityFee = await getRecentPrioritizationFees();
+      console.log("priorityFee", priorityFee);
+      if (!priorityFee.low) {
+        toast.error("Error getting priority fee");
+        return;
+      }
 
       const key = wallet.publicKey?.toString() || "";
       const trans = await jupiterQuoteApi.swapPost({
@@ -248,7 +253,7 @@ const Card = () => {
           quoteResponse: quote,
           userPublicKey: key,
           dynamicComputeUnitLimit: true,
-          prioritizationFeeLamports: priorityFee.low,
+          prioritizationFeeLamports: priorityFee.high,
         },
       });
       const swapTransaction = trans.swapTransaction;

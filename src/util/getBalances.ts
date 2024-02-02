@@ -132,13 +132,15 @@ export const getRecentPrioritizationFees = async (): Promise<PriorityFee> => {
     }),
   });
   const data = await response.json();
-  console.log("Fee: ", data);
-  return {
-    min: data.result.min,
-    low: data.result.low,
-    medium: data.result.medium,
-    high: data.result.high,
-    veryHigh: data.result.veryHigh,
-    unsafeMax: data.result.unsafeMax,
+  const result: PriorityFee = {
+    min: data.result.priorityFeeLevels.min,
+    low: data.result.priorityFeeLevels.low,
+    medium: data.result.priorityFeeLevels.medium,
+    high: data.result.priorityFeeLevels.high,
+    veryHigh: data.result.priorityFeeLevels.veryHigh,
+    unsafeMax: data.result.priorityFeeLevels.unsafeMax,
   };
+  console.log("Fee: ", result);
+
+  return result;
 };
