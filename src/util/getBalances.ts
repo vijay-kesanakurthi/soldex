@@ -12,7 +12,16 @@ export type BlanceDetails = {
   is_token_mint: boolean;
 };
 
-export async function getAllTokensInWallet(
+export type PriorityFee = {
+  min: number;
+  low: number;
+  medium: number;
+  high: number;
+  veryHigh: number;
+  unsafeMax: number;
+};
+
+export async function getAllTokensByOwner(
   publicKey: PublicKey,
   connection: Connection
 ): Promise<BlanceDetails[]> {
@@ -68,12 +77,12 @@ export async function getAllTokensInWallet(
   return balances;
 }
 
-export async function getSpecificTokenInWallet(
+export async function getTokenBalanceByMint(
   publicKey: PublicKey,
   connection: Connection,
   mintAddress: string
 ): Promise<BlanceDetails> {
-  const accounts = await getAllTokensInWallet(publicKey, connection);
+  const accounts = await getAllTokensByOwner(publicKey, connection);
   const account = accounts.find((a) => a.mint_address === mintAddress);
   if (account === undefined) {
     return {
@@ -88,3 +97,37 @@ export async function getSpecificTokenInWallet(
   }
   return account;
 }
+
+const url = `https://mainnet.helius-rpc.com/?api-key=5839e6aa-7ba3-44d2-99ca-2ead557ec729`;
+
+export const getRecentPrioritizationFees = async (): Promise<PriorityFee> => {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "getPriorityFeeEstimate",
+      params: [
+        {
+          accountKeys: ["JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"],
+          options: {
+            includeAllPriorityFeeLevels: true,
+          },
+        },
+      ],
+    }),
+  });
+  const data = await response.json();
+  console.log("Fee: ", data);
+  return {
+    min: data.result.min,
+    low: data.result.low,
+    medium: data.result.medium,
+    high: data.result.high,
+    veryHigh: data.result.veryHigh,
+    unsafeMax: data.result.unsafeMax,
+  };
+};
