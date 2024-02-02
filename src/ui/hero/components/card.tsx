@@ -4,7 +4,7 @@ import Modal from "../../modal/modal";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import React from "react";
-import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
+import { Connection, VersionedTransaction } from "@solana/web3.js";
 import { coins, CoinModel } from "./coins";
 import { Buffer } from "buffer";
 import { toast } from "react-toastify";
@@ -12,16 +12,16 @@ import "react-toastify/dist/ReactToastify.css";
 import Liquidity from "./liquidity";
 
 import { createJupiterApiClient, ResponseError } from "@jup-ag/api";
-import { getAllTokensInWallet } from "../../../util/getBalances";
+import {
+  getTokenBalanceByMint,
+  BlanceDetails,
+} from "../../../util/getBalances";
 
 const jupiterQuoteApi = createJupiterApiClient();
 
 const Card = () => {
   const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
   const [toAsset, setToAsset] = useState<CoinModel>(coins[1]);
-  const TOKEN_PROGRAM_ID = new PublicKey(
-    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-  );
 
   const [open1stCoin, setOpen1stCoin] = useState(false);
   const [open2ndCoin, setOpen2ndCoin] = useState(false);
@@ -63,10 +63,22 @@ const Card = () => {
     };
   }, []);
 
+  // useEffect(() => {
+  //   if (publicKey && connection)
+  //     getAllTokensInWallet(publicKey, connection).then();
+  // }, [publicKey]);
+
+  // useEffect for getting the max balance
   useEffect(() => {
-    if (publicKey && connection)
-      getAllTokensInWallet(publicKey, connection).then();
-  }, [publicKey]);
+    console.log("fromAsset", fromAsset);
+    if (publicKey && connection) {
+      getTokenBalanceByMint(publicKey, connection, fromAsset.mintAddress).then(
+        (data: BlanceDetails) => {
+          setMaxBalance(Number(data.ui_amount));
+        }
+      );
+    }
+  }, [fromAsset, publicKey]);
 
   const handlefirstInput = () => {
     setOpen2ndCoin(false);
@@ -75,6 +87,7 @@ const Card = () => {
 
   const swapHandler = () => {
     const tempAsset = fromAsset;
+    if (loading) return;
     setFromAsset(toAsset);
     setToAsset(tempAsset);
     setOpen1stCoin(false);
@@ -112,6 +125,20 @@ const Card = () => {
   };
   const handleOpen = (option: string) => {
     setSelectButton(option);
+  };
+
+  const CustomToastToOpenLink = (transactionId: string) => {
+    return (
+      <div className="">
+        <a
+          href={`https://solscan.io/tx/${transactionId}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Token swapped successfully Click to view transaction
+        </a>
+      </div>
+    );
   };
 
   const quoteResponse = async () => {
@@ -160,7 +187,9 @@ const Card = () => {
         return;
       }
       console.log(quoteResponse);
-      getOutputAmount(quoteResponse.outAmount / 10 ** toAsset.decimals);
+      getOutputAmount(
+        Number(quoteResponse.outAmount) / 10 ** Number(toAsset.decimals)
+      );
 
       setQuote(quoteResponse);
     } catch (e) {
@@ -181,6 +210,7 @@ const Card = () => {
       );
       return;
     }
+
     setLoading(true);
     console.log("quote", quote);
     console.log("wallet", wallet);
@@ -241,7 +271,8 @@ const Card = () => {
         "confirmed"
       );
       console.log("sig", sig);
-      toast.success("Token swapped successfully https://solscan.io/tx/${txid}");
+      // toast.success(`Token swapped successfully https://solscan.io/tx/${txid}`);
+      toast.success(CustomToastToOpenLink(txid));
 
       console.log(`https://solscan.io/tx/${txid}`);
     } catch (error) {
@@ -274,17 +305,25 @@ const Card = () => {
   };
 
   function getInputAmount() {
-    const inputAmount = document.getElementById(
-      "fromAssetInput"
-    ) as HTMLInputElement;
-    return Number(inputAmount.value);
+    try {
+      const inputAmount = document.getElementById(
+        "fromAssetInput"
+      ) as HTMLInputElement;
+      return Number(inputAmount.value);
+    } catch {
+      return 0;
+    }
   }
 
   function getOutputAmount(amount: number) {
-    const outputAmount = document.getElementById(
-      "toAssetInput"
-    ) as HTMLInputElement;
-    outputAmount.value = amount.toString();
+    try {
+      const outputAmount = document.getElementById(
+        "toAssetInput"
+      ) as HTMLInputElement;
+      outputAmount.value = amount.toString();
+    } catch {
+      return 0;
+    }
   }
 
   return (
@@ -400,13 +439,14 @@ const Card = () => {
                   type="number"
                   id="fromAssetInput"
                   required
+                  disabled={loading}
                   className={`outline-none h-full font-medium text-base ${"text-white"} p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl`}
                   onChange={handleInputChange}
                 />
               </div>
               {/* max tokens will be shown here at the end*/}
               <div className="text-white my-1  w-full text-right">
-                Max: {maxBalance}
+                Max: {maxBalance.toString()}
               </div>
 
               <div className="text-white my-1 mx-2 w-full"></div>
@@ -498,28 +538,43 @@ const Card = () => {
                   </div>
                 </div>
               )}
-
+              {/* onhover disable */}
               <div className="inputBox flexCenter">
                 {publicKey ? (
                   <button
                     type="button"
                     id="exchangeBtn"
-                    className="border-2 p-auto"
+                    className={`border-2 p-auto ${
+                      loading ||
+                      maxBalance < getInputAmount() ||
+                      !quote ||
+                      (quote &&
+                        quote.routePlan &&
+                        quote.routePlan.length === 0) ||
+                      getInputAmount() === 0
+                        ? "hover:cursor-not-allowed opacity-50 "
+                        : "hover:cursor-pointer opacity-100"
+                    }`}
                     onClick={async () => {
-                      // connect to wallet if not connected else swap
                       if (loading) return;
-                      // if (maxBalance < getInputAmount()) {
-                      //   toast.error("Insufficient balance");
-                      //   return;
-                      // }
-                      if (quote?.routePlan.length === 0) {
-                        toast.error("No route found");
+                      if (maxBalance < getInputAmount()) {
                         return;
                       }
-                      if (publicKey) {
-                        console.log("swap");
-                        await signAndSendTransaction();
+                      if (getInputAmount() === 0) {
+                        return;
                       }
+                      if (
+                        quote &&
+                        quote.routePlan &&
+                        quote?.routePlan.length !== 0
+                      ) {
+                        if (publicKey) {
+                          console.log("swap");
+                          await signAndSendTransaction();
+                        }
+                      }
+                      toast.error("No route found");
+                      return;
                     }}
                   >
                     {loading ? (

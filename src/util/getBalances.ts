@@ -43,6 +43,7 @@ export async function getAllTokensByOwner(
     // Use the mint address to determine which token account is for which token
     const mint = parsed_token_account.mint;
     const token_def = token_defs.find((t) => t.mintAddress === mint.toBase58());
+    console.log("token_def:", token_def, "mint:", mint.toBase58());
     // Ignore non-devToken accounts
     if (token_def === undefined) continue;
 
@@ -82,6 +83,16 @@ export async function getTokenBalanceByMint(
   connection: Connection,
   mintAddress: string
 ): Promise<BlanceDetails> {
+  if (mintAddress === "So11111111111111111111111111111111111111112") {
+    const balance = await connection.getBalance(publicKey);
+    return {
+      tokenName: "SOL",
+      amount: balance.toString(),
+      ui_amount: DecimalUtil.fromBN(new BN(balance.toString()), 9).toString(),
+      mint_address: mintAddress,
+      is_token_mint: false,
+    };
+  }
   const accounts = await getAllTokensByOwner(publicKey, connection);
   const account = accounts.find((a) => a.mint_address === mintAddress);
   if (account === undefined) {
