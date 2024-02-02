@@ -4,7 +4,7 @@ import Modal from "../../modal/modal";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import React from "react";
-import { Connection, VersionedTransaction } from "@solana/web3.js";
+import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { coins, CoinModel } from "./coins";
 import { Buffer } from "buffer";
 import { toast } from "react-toastify";
@@ -34,7 +34,7 @@ const Card = () => {
   const { publicKey } = useWallet();
   const wallet = useWallet();
   const connection = new Connection(
-    "https://mainnet.helius-rpc.com/?api-key=5839e6aa-7ba3-44d2-99ca-2ead557ec729"
+    "https://solana-mainnet.g.alchemy.com/v2/lp_wZX9JFWU0IYpkjGFibIBNEOO60meW"
   );
 
   const [quote, setQuote] = useState<any>(null);
@@ -79,6 +79,8 @@ const Card = () => {
           setMaxBalance(Number(data.ui_amount));
         }
       );
+    } else {
+      setMaxBalance(0);
     }
   }, [fromAsset, publicKey]);
 
@@ -179,7 +181,7 @@ const Card = () => {
         inputMint: fromAsset.mintAddress,
         outputMint: toAsset.mintAddress,
         amount: getInputAmount() * 10 ** fromAsset.decimals,
-        slippageBps: 500,
+        slippageBps: 50,
       });
       if (!quoteResponse) {
         setQuote(null);
@@ -236,7 +238,7 @@ const Card = () => {
       //       // feeAccount: "fee_account_public_key"
       //       dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
       //       // custom priority fee
-      //       prioritizationFeeLamports: "auto",
+      //       prioritizationFeeLamports: { autoMultiplier: 2 },
       //     }),
       //   })
       // ).json();
@@ -253,7 +255,9 @@ const Card = () => {
           quoteResponse: quote,
           userPublicKey: key,
           dynamicComputeUnitLimit: true,
-          prioritizationFeeLamports: priorityFee.high,
+          wrapAndUnwrapSol: true,
+
+          prioritizationFeeLamports: { autoMultiplier: 2 },
         },
       });
       const swapTransaction = trans.swapTransaction;
@@ -282,6 +286,13 @@ const Card = () => {
       console.log("sig", sig);
       // toast.success(`Token swapped successfully https://solscan.io/tx/${txid}`);
       toast.success(CustomToastToOpenLink(txid));
+      getTokenBalanceByMint(
+        publicKey || new PublicKey(""),
+        connection,
+        fromAsset.mintAddress
+      ).then((data: BlanceDetails) => {
+        setMaxBalance(Number(data.ui_amount));
+      });
 
       console.log(`https://solscan.io/tx/${txid}`);
     } catch (error) {
@@ -454,9 +465,11 @@ const Card = () => {
                 />
               </div>
               {/* max tokens will be shown here at the end*/}
-              <div className="text-white my-1  w-full text-right">
-                Max: {maxBalance.toString()}
-              </div>
+              {publicKey && (
+                <div className="text-white my-1  w-full text-right">
+                  Max: {maxBalance.toString()}
+                </div>
+              )}
 
               <div className="text-white my-1 mx-2 w-full"></div>
               <div className="flexCenter">
@@ -549,10 +562,11 @@ const Card = () => {
               )}
               {/* onhover disable */}
               <div className="inputBox flexCenter">
-                {publicKey ? (
+                {
                   <button
                     type="button"
                     id="exchangeBtn"
+                    disabled={!publicKey}
                     className={`border-2 p-auto ${
                       loading ||
                       maxBalance < getInputAmount() ||
@@ -592,15 +606,13 @@ const Card = () => {
                         className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
                         role="status"
                       ></div>
-                    ) : (
+                    ) : publicKey ? (
                       "Swap"
+                    ) : (
+                      "Connect Wallet"
                     )}
                   </button>
-                ) : (
-                  <div className="mt-5">
-                    <WalletMultiButton className="border-2 p-auto" />
-                  </div>
-                )}
+                }
               </div>
             </form>
             <div className="Card rounded-3xl flex visible flex-col mt-10 p-2 w-[min(456px,100%)] self-center bg-cyberpunk-card-bg">

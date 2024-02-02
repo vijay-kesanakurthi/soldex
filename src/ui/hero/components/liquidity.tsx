@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { CoinModel } from "./coins";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { SetupWhirlpool } from "../../../util/whirlpool_setup";
 
 interface Props {
   handlefirstInput: () => void;
@@ -9,6 +11,9 @@ interface Props {
   handleSecondInput: () => void;
   open2ndCoin: boolean;
 }
+import { WhirlpoolContext, WhirlpoolClient } from "@orca-so/whirlpools-sdk";
+import { getSwapQuote, getWhirlpoolPubkey } from "../../../util/swap";
+import { PublicKey } from "@solana/web3.js";
 
 const Liquidity: React.FC<Props> = ({
   handlefirstInput,
