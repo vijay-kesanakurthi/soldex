@@ -15,6 +15,8 @@ import { createJupiterApiClient, ResponseError } from "@jup-ag/api";
 import {
   getTokenBalanceByMint,
   BlanceDetails,
+  getRecentPrioritizationFees,
+  PriorityFee,
 } from "../../../util/getBalances";
 
 const jupiterQuoteApi = createJupiterApiClient();
@@ -238,6 +240,7 @@ const Card = () => {
       //     }),
       //   })
       // ).json();
+      const priorityFee: PriorityFee = await getRecentPrioritizationFees();
 
       const key = wallet.publicKey?.toString() || "";
       const trans = await jupiterQuoteApi.swapPost({
@@ -245,6 +248,7 @@ const Card = () => {
           quoteResponse: quote,
           userPublicKey: key,
           dynamicComputeUnitLimit: true,
+          prioritizationFeeLamports: priorityFee.low,
         },
       });
       const swapTransaction = trans.swapTransaction;
@@ -571,6 +575,7 @@ const Card = () => {
                         if (publicKey) {
                           console.log("swap");
                           await signAndSendTransaction();
+                          return;
                         }
                       }
                       toast.error("No route found");
