@@ -22,8 +22,45 @@ export const SetupWhirlpool = async (
   console.log("ctx:", ctx);
   const client = buildWhirlpoolClient(ctx);
 
+  // getWhirlpoolPubkeyCheck(client);
   return { ctx, client };
 };
+
+// export async function getWhirlpoolPubkeyCheck(client: WhirlpoolClient) {
+//   const myTokens = tokens.slice(300); // Use slice to create a shallow copy
+//   const successResults: string[] = [];
+
+//   const processToken = async (token) => {
+//     try {
+//       const whirlpool_pubkey = PDAUtil.getWhirlpool(
+//         ORCA_WHIRLPOOL_PROGRAM_ID,
+//         WHIRLPOOL_CONFIG,
+//         new PublicKey("orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE"),
+//         new PublicKey(token.mint),
+//         64
+//       ).publicKey;
+
+//       const res = await client.getPool(whirlpool_pubkey);
+//       successResults.push(`Success: ${token.name}`);
+//       console.log("token :", token.name);
+//       console.log("token Address", token.mint);
+//     } catch (err) {
+//       // Ignore errors
+//     }
+//   };
+
+//   const processNextToken = async () => {
+//     if (myTokens.length === 0) {
+//       console.log("Success Results:", successResults);
+//     } else {
+//       const tokenToProcess = myTokens.shift();
+//       await processToken(tokenToProcess);
+//       setTimeout(processNextToken, 500); // Call the next token after 1 second
+//     }
+//   };
+
+//   processNextToken();
+// }
 
 // Wallet;
 // Wallet={

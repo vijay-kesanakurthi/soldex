@@ -13,11 +13,7 @@ import {
   BlanceDetails,
 } from "../../../util/getBalances";
 import { SetupWhirlpool } from "../../../util/whirlpool_setup";
-import {
-  getSwapQuote,
-  getWhirlpoolPubkey,
-  swapTokens,
-} from "../../../util/swap";
+import { getSwapQuote, swapTokens, getPoolPubKey } from "../../../util/swap";
 
 import { networkUrl, network } from "../../../util/constants";
 
@@ -51,13 +47,15 @@ const Card = () => {
 
   // get whirlpool pubkey of the selected pair
   useEffect(() => {
-    getWhirlpoolPubkey(
-      new PublicKey(fromAsset.mintAddress),
-      new PublicKey(toAsset.mintAddress),
-      64
-    ).then((pubkey) => {
-      setWhirlpoolPublicKey(pubkey);
-    });
+    // getWhirlpoolPubkey(
+    //   new PublicKey(fromAsset.mintAddress),
+    //   new PublicKey(toAsset.mintAddress),
+    //   64
+    // ).then((pubkey) => {
+    //   setWhirlpoolPublicKey(pubkey);
+    // });
+    const result = getPoolPubKey(fromAsset.tokenSymbol, toAsset.tokenSymbol);
+    setWhirlpoolPublicKey(result);
   }, [fromAsset, toAsset]);
 
   // get max balance of the selected token
@@ -103,6 +101,7 @@ const Card = () => {
       const quote = await getSwapQuote(
         new PublicKey(fromAsset.mintAddress),
         getInputAmount() * 10 ** fromAsset.decimals,
+        // USDC_USDT,
         whirlpoolPublicKey,
         ctx,
         client
@@ -121,6 +120,7 @@ const Card = () => {
 
   // swap tokens
   async function swapFromWhirlpool() {
+    toast.dismiss();
     if (!whirlpoolPublicKey || !ctx || !client) {
       return;
     }
@@ -137,6 +137,7 @@ const Card = () => {
         whirlpoolPublicKey,
         quote
       );
+      // const signature = await swapTokens(ctx, client, USDC_USDT, quote);
       console.log("signature", signature);
       toast.success(CustomToastToOpenLink(signature));
       getTokenBalanceByMint(

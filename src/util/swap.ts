@@ -10,7 +10,7 @@ import {
 } from "@orca-so/whirlpools-sdk";
 import { PublicKey } from "@solana/web3.js";
 import Decimal from "decimal.js";
-import { WHIRLPOOL_CONFIG } from "./constants";
+import { WHIRLPOOL_CONFIG, keyMap } from "./constants";
 
 export async function getSwapQuote(
   mint: PublicKey,
@@ -37,6 +37,9 @@ export async function getSwapQuote(
     throw e;
   }
 }
+
+export const getPoolPubKey = (token: string, token2: string) =>
+  keyMap[token]?.[token2] || new PublicKey("");
 
 export async function getWhirlpoolPubkey(
   token1: PublicKey,
