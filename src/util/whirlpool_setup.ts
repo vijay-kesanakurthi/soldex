@@ -7,11 +7,12 @@ import {
   WhirlpoolClient,
 } from "@orca-so/whirlpools-sdk";
 import { Wallet } from "@coral-xyz/anchor";
+import { networkUrl } from "./constants";
 
 export const SetupWhirlpool = async (
   wallet: Wallet
 ): Promise<{ ctx: WhirlpoolContext; client: WhirlpoolClient }> => {
-  const connection = new Connection("https://api.devnet.solana.com");
+  const connection = new Connection(networkUrl);
 
   const ctx = WhirlpoolContext.from(
     connection,

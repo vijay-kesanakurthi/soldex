@@ -10,10 +10,7 @@ import {
 } from "@orca-so/whirlpools-sdk";
 import { PublicKey } from "@solana/web3.js";
 import Decimal from "decimal.js";
-
-const DEVNET_WHIRLPOOLS_CONFIG = new PublicKey(
-  "FcrweFY1G9HJAHG5inkGB6pKg1HZ6x9UC2WioAfWrGkR"
-);
+import { WHIRLPOOL_CONFIG } from "./constants";
 
 export async function getSwapQuote(
   mint: PublicKey,
@@ -48,7 +45,7 @@ export async function getWhirlpoolPubkey(
 ): Promise<PublicKey> {
   const whirlpool_pubkey = PDAUtil.getWhirlpool(
     ORCA_WHIRLPOOL_PROGRAM_ID,
-    DEVNET_WHIRLPOOLS_CONFIG,
+    WHIRLPOOL_CONFIG,
     token1,
     token2,
     tick_spacing

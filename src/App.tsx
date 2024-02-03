@@ -9,9 +9,10 @@ import Navbar from "./ui/navbar/Navbar";
 import { useMemo } from "react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { ToastContainer } from "react-toastify";
+import { networkUrl } from "./util/constants";
 
 const App = () => {
-  const endpoint = "https://api.devnet.solana.com/";
+  const endpoint = networkUrl;
 
   const wallets = useMemo(() => [], []);
 
@@ -29,6 +30,7 @@ const App = () => {
               rtl={false}
               pauseOnFocusLoss
               draggable
+              limit={2}
               pauseOnHover
             />
             <Navbar />

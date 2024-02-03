@@ -3,6 +3,7 @@ import { TOKEN_PROGRAM_ID, unpackAccount } from "@solana/spl-token";
 import { DecimalUtil } from "@orca-so/common-sdk";
 import { coins } from "./devCoins";
 import BN from "bn.js";
+import { networkUrl } from "./constants";
 
 export type BlanceDetails = {
   tokenName: string;
@@ -104,10 +105,8 @@ export async function getTokenBalanceByMint(
   return account;
 }
 
-const url = `https://api.devnet.solana.com/`;
-
 export const getRecentPrioritizationFees = async (): Promise<PriorityFee> => {
-  const response = await fetch(url, {
+  const response = await fetch(networkUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

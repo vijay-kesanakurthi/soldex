@@ -4,7 +4,7 @@ import Modal from "../../modal/modal";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { coins } from "../../../util/devCoins";
-import { CoinModel } from "./coins";
+import { CoinModel } from "../../../util/coinModel";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Liquidity from "./liquidity";
@@ -18,6 +18,8 @@ import {
   getWhirlpoolPubkey,
   swapTokens,
 } from "../../../util/swap";
+
+import { networkUrl, network } from "../../../util/constants";
 
 const Card = () => {
   const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
@@ -33,10 +35,7 @@ const Card = () => {
   const [ctx, setCtx] = useState<any>(null);
   const [client, setClient] = useState<any>(null);
 
-  const connection = useMemo(
-    () => new Connection("https://api.devnet.solana.com"),
-    []
-  );
+  const connection = useMemo(() => new Connection(networkUrl, "confirmed"), []);
   const { publicKey } = useWallet();
   const wallet = useWallet();
 
@@ -78,7 +77,7 @@ const Card = () => {
   // get quote from whirlpool on change of fromAsset or toAsset
   useEffect(() => {
     getQuoteFromWhirlpool();
-  }, [fromAsset, toAsset]);
+  }, [fromAsset, toAsset, whirlpoolPublicKey]);
 
   // get quote from whirlpool on input change
   const handleInputChange = () => {
@@ -200,7 +199,7 @@ const Card = () => {
     return (
       <div className="">
         <a
-          href={`https://solscan.io/tx/${transactionId}?cluster=devnet`}
+          href={`https://solscan.io/tx/${transactionId}?cluster=${network}`}
           target="_blank"
           rel="noreferrer"
         >
