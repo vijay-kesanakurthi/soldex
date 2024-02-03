@@ -1,11 +1,3 @@
-type CoinModel = {
-  tokenSymbol: string;
-  mintAddress: string;
-  tokenName: string;
-  icon: string;
-  decimals: number;
-};
-
 export const coins: CoinModel[] = [
   {
     tokenSymbol: "SOL",
@@ -49,7 +41,14 @@ export const coins: CoinModel[] = [
     icon: "https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png?1628781615",
     decimals: 6,
   },
- 
 ];
 
 export type { CoinModel };
+
+type CoinModel = {
+  tokenSymbol: string;
+  mintAddress: string;
+  tokenName: string;
+  icon: string;
+  decimals: number;
+};

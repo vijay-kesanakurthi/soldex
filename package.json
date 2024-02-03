@@ -13,6 +13,7 @@
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@jup-ag/react-hook": "^6.0.0-alpha.7",
     "@orca-so/common-sdk": "^0.4.0",
+    "@orca-so/whirlpools-sdk": "^0.12.1",
     "@solana/spl-token": "^0.3.8",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",

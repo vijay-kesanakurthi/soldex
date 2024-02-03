@@ -1,76 +1,67 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import "./exchange-card.scss";
 import Modal from "../../modal/modal";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import React from "react";
-import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
-import { coins, CoinModel } from "./coins";
-import { Buffer } from "buffer";
+import { Connection, PublicKey } from "@solana/web3.js";
+import { coins } from "../../../util/devCoins";
+import { CoinModel } from "./coins";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Liquidity from "./liquidity";
-
-import { createJupiterApiClient, ResponseError } from "@jup-ag/api";
 import {
   getTokenBalanceByMint,
   BlanceDetails,
-  getRecentPrioritizationFees,
-  PriorityFee,
 } from "../../../util/getBalances";
-
-const jupiterQuoteApi = createJupiterApiClient();
+import { SetupWhirlpool } from "../../../util/whirlpool_setup";
+import {
+  getSwapQuote,
+  getWhirlpoolPubkey,
+  swapTokens,
+} from "../../../util/swap";
 
 const Card = () => {
   const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
   const [toAsset, setToAsset] = useState<CoinModel>(coins[1]);
-
   const [open1stCoin, setOpen1stCoin] = useState(false);
   const [open2ndCoin, setOpen2ndCoin] = useState(false);
-
   const [maxBalance, setMaxBalance] = useState<number>(0);
-
   const [selectButton, setSelectButton] = useState("Swap");
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout>();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [whirlpoolPublicKey, setWhirlpoolPublicKey] = useState<PublicKey>();
+  const [quote, setQuote] = useState<any>(null);
+  const [ctx, setCtx] = useState<any>(null);
+  const [client, setClient] = useState<any>(null);
+
+  const connection = useMemo(
+    () => new Connection("https://api.devnet.solana.com"),
+    []
+  );
   const { publicKey } = useWallet();
   const wallet = useWallet();
-  const connection = new Connection(
-    "https://solana-mainnet.g.alchemy.com/v2/lp_wZX9JFWU0IYpkjGFibIBNEOO60meW"
-  );
 
-  const [quote, setQuote] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-
-  const firstCoinRef = useRef<HTMLDivElement>(null);
-  const secondCoinRef = useRef<HTMLDivElement>(null);
-  const handleClickOutside = (event: MouseEvent) => {
-    if (
-      firstCoinRef.current &&
-      !firstCoinRef.current.contains(event.target as Node)
-    ) {
-      setOpen1stCoin(false);
-    }
-    if (
-      secondCoinRef.current &&
-      !secondCoinRef.current.contains(event.target as Node)
-    ) {
-      setOpen2ndCoin(false);
-    }
-  };
-
+  // setup whirlpool
   useEffect(() => {
-    document.addEventListener("mousedown", handleClickOutside);
+    if (publicKey && wallet) {
+      SetupWhirlpool(wallet).then(({ ctx, client }) => {
+        setCtx(ctx);
+        setClient(client);
+      });
+    }
+  }, [publicKey, wallet]);
 
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+  // get whirlpool pubkey of the selected pair
+  useEffect(() => {
+    getWhirlpoolPubkey(
+      new PublicKey(fromAsset.mintAddress),
+      new PublicKey(toAsset.mintAddress),
+      64
+    ).then((pubkey) => {
+      setWhirlpoolPublicKey(pubkey);
+    });
+  }, [fromAsset, toAsset]);
 
-  // useEffect(() => {
-  //   if (publicKey && connection)
-  //     getAllTokensInWallet(publicKey, connection).then();
-  // }, [publicKey]);
-
-  // useEffect for getting the max balance
+  // get max balance of the selected token
   useEffect(() => {
     console.log("fromAsset", fromAsset);
     if (publicKey && connection) {
@@ -82,7 +73,87 @@ const Card = () => {
     } else {
       setMaxBalance(0);
     }
-  }, [fromAsset, publicKey]);
+  }, [fromAsset, publicKey, connection]);
+
+  // get quote from whirlpool on change of fromAsset or toAsset
+  useEffect(() => {
+    getQuoteFromWhirlpool();
+  }, [fromAsset, toAsset]);
+
+  // get quote from whirlpool on input change
+  const handleInputChange = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    const newTimeoutId = setTimeout(() => {
+      getQuoteFromWhirlpool();
+    }, 500);
+    setTimeoutId(newTimeoutId);
+  };
+
+  // get quote from whirlpool
+  async function getQuoteFromWhirlpool() {
+    if (!whirlpoolPublicKey || !ctx || !client) {
+      return;
+    }
+    if (getInputAmount() === 0) {
+      setOutputAmount(0);
+      return;
+    }
+    try {
+      const quote = await getSwapQuote(
+        new PublicKey(fromAsset.mintAddress),
+        getInputAmount() * 10 ** fromAsset.decimals,
+        whirlpoolPublicKey,
+        ctx,
+        client
+      );
+      console.log(quote);
+      setQuote(quote);
+      setOutputAmount(
+        quote.estimatedAmountOut.toNumber() / 10 ** toAsset.decimals
+      );
+    } catch (e) {
+      console.log("Error getting quote", e);
+      setQuote(null);
+      setOutputAmount(0);
+    }
+  }
+
+  // swap tokens
+  async function swapFromWhirlpool() {
+    if (!whirlpoolPublicKey || !ctx || !client) {
+      return;
+    }
+    if (!quote) {
+      toast.error("No quote found");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const signature = await swapTokens(
+        ctx,
+        client,
+        whirlpoolPublicKey,
+        quote
+      );
+      console.log("signature", signature);
+      toast.success(CustomToastToOpenLink(signature));
+      getTokenBalanceByMint(
+        publicKey || new PublicKey(""),
+        connection,
+        fromAsset.mintAddress
+      ).then((data: BlanceDetails) => {
+        setMaxBalance(Number(data.ui_amount));
+      });
+    } catch (e) {
+      console.log("Error swapping tokens", e);
+      toast.error("Error swapping tokens");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const handlefirstInput = () => {
     setOpen2ndCoin(false);
@@ -103,11 +174,7 @@ const Card = () => {
     setOpen2ndCoin((prev) => !prev);
   };
 
-  useEffect(() => {
-    quoteResponse();
-  }, [fromAsset, toAsset]);
-
-  const handle1stInputData = async (data: number) => {
+  const handleModelOne = async (data: number) => {
     if (toAsset.mintAddress === coins[data].mintAddress) {
       const tempAsset = fromAsset;
       setFromAsset(toAsset);
@@ -117,7 +184,8 @@ const Card = () => {
     }
     console.log(data);
   };
-  const handleendInputData = (data: number) => {
+
+  const handleModelTwo = (data: number) => {
     if (fromAsset.mintAddress === coins[data].mintAddress) {
       const tempAsset = fromAsset;
       setFromAsset(toAsset);
@@ -127,15 +195,12 @@ const Card = () => {
     }
     console.log(data);
   };
-  const handleOpen = (option: string) => {
-    setSelectButton(option);
-  };
 
   const CustomToastToOpenLink = (transactionId: string) => {
     return (
       <div className="">
         <a
-          href={`https://solscan.io/tx/${transactionId}`}
+          href={`https://solscan.io/tx/${transactionId}?cluster=devnet`}
           target="_blank"
           rel="noreferrer"
         >
@@ -145,186 +210,7 @@ const Card = () => {
     );
   };
 
-  const quoteResponse = async () => {
-    try {
-      if (getInputAmount().toString() === "NaN") {
-        return;
-      }
-      const quoteResponse = await (
-        await fetch(
-          `https://quote-api.jup.ag/v6/quote?inputMint=${
-            fromAsset.mintAddress
-          }&outputMint=${toAsset.mintAddress}&amount=${
-            getInputAmount() * 10 ** fromAsset.decimals
-          }&slippageBps=500`
-        )
-      )
-        .json()
-        .catch((err) => {
-          console.log(err);
-          setQuote(null);
-        });
-      console.log(quoteResponse);
-      getOutputAmount(quoteResponse.outAmount / 10 ** toAsset.decimals);
-      setQuote(quoteResponse);
-    } catch (err) {
-      console.log(err);
-    }
-  };
-
-  const jupQuoteResponse = async () => {
-    try {
-      if (getInputAmount().toString() === "NaN") {
-        return;
-      }
-      const quoteResponse = await jupiterQuoteApi.quoteGet({
-        inputMint: fromAsset.mintAddress,
-        outputMint: toAsset.mintAddress,
-        amount: getInputAmount() * 10 ** fromAsset.decimals,
-        slippageBps: 50,
-      });
-      if (!quoteResponse) {
-        setQuote(null);
-        getOutputAmount(0);
-
-        console.log("unable to quote");
-        return;
-      }
-      console.log(quoteResponse);
-      getOutputAmount(
-        Number(quoteResponse.outAmount) / 10 ** Number(toAsset.decimals)
-      );
-
-      setQuote(quoteResponse);
-    } catch (e) {
-      setQuote(null);
-      getOutputAmount(0);
-      if (e instanceof ResponseError) {
-        console.log(await e.response.json());
-      }
-
-      console.log(e);
-    }
-  };
-
-  async function signAndSendTransaction() {
-    if (!wallet.connected || !wallet?.signTransaction) {
-      console.error(
-        "Wallet is not connected or does not support signing transactions"
-      );
-      return;
-    }
-
-    setLoading(true);
-    console.log("quote", quote);
-    console.log("wallet", wallet);
-    console.log("publicKey", publicKey?.toString());
-    console.log("connection", connection);
-
-    // get serialized transactions for the swap
-
-    try {
-      // const trans = await (
-      //   await fetch("https://quote-api.jup.ag/v6/swap", {
-      //     method: "POST",
-      //     headers: {
-      //       "Content-Type": "application/json",
-      //     },
-      //     body: JSON.stringify({
-      //       quoteResponse: quote,
-      //       userPublicKey: wallet.publicKey?.toString(),
-      //       wrapAndUnwrapSol: true,
-      //       // feeAccount is optional. Use if you want to charge a fee.  feeBps must have been passed in /quote API.
-      //       // feeAccount: "fee_account_public_key"
-      //       dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
-      //       // custom priority fee
-      //       prioritizationFeeLamports: { autoMultiplier: 2 },
-      //     }),
-      //   })
-      // ).json();
-      const priorityFee: PriorityFee = await getRecentPrioritizationFees();
-      console.log("priorityFee", priorityFee);
-      if (!priorityFee.low) {
-        toast.error("Error getting priority fee");
-        return;
-      }
-
-      const key = wallet.publicKey?.toString() || "";
-      const trans = await jupiterQuoteApi.swapPost({
-        swapRequest: {
-          quoteResponse: quote,
-          userPublicKey: key,
-          dynamicComputeUnitLimit: true,
-          wrapAndUnwrapSol: true,
-
-          prioritizationFeeLamports: { autoMultiplier: 2 },
-        },
-      });
-      const swapTransaction = trans.swapTransaction;
-
-      console.log("swapTransaction", trans);
-      const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
-      const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-      const signedTransaction = await wallet.signTransaction(transaction);
-
-      const rawTransaction = signedTransaction.serialize();
-      const txid = await connection.sendRawTransaction(rawTransaction, {
-        skipPreflight: true,
-        maxRetries: 2,
-      });
-      console.log("txid", txid);
-
-      const latestBlockHash = await connection.getLatestBlockhash();
-      const sig = await connection.confirmTransaction(
-        {
-          blockhash: latestBlockHash.blockhash,
-          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-          signature: txid,
-        },
-        "confirmed"
-      );
-      console.log("sig", sig);
-      // toast.success(`Token swapped successfully https://solscan.io/tx/${txid}`);
-      toast.success(CustomToastToOpenLink(txid));
-      getTokenBalanceByMint(
-        publicKey || new PublicKey(""),
-        connection,
-        fromAsset.mintAddress
-      ).then((data: BlanceDetails) => {
-        setMaxBalance(Number(data.ui_amount));
-      });
-
-      console.log(`https://solscan.io/tx/${txid}`);
-    } catch (error) {
-      toast.error("Error signing or sending the transaction");
-      console.error("Error signing or sending the transaction:", error);
-      if (error instanceof ResponseError) {
-        console.log(await error.response.json());
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // State to store the timeout ID
-  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout>();
-
-  const handleInputChange = () => {
-    // Clear the previous timeout
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-
-    // Set a new timeout to invoke quoteResponse after 500 milliseconds (adjust as needed)
-    const newTimeoutId = setTimeout(() => {
-      jupQuoteResponse();
-    }, 500);
-
-    // Update the timeoutId state
-    setTimeoutId(newTimeoutId);
-  };
-
-  function getInputAmount() {
+  function getInputAmount(): number {
     try {
       const inputAmount = document.getElementById(
         "fromAssetInput"
@@ -335,7 +221,7 @@ const Card = () => {
     }
   }
 
-  function getOutputAmount(amount: number) {
+  function setOutputAmount(amount: number) {
     try {
       const outputAmount = document.getElementById(
         "toAssetInput"
@@ -350,14 +236,14 @@ const Card = () => {
     <>
       {open2ndCoin && (
         <Modal
-          onSetData={handleendInputData}
+          onSetData={handleModelTwo}
           closeHandler={() => setOpen2ndCoin(false)}
           assets={coins}
         />
       )}
       {open1stCoin && (
         <Modal
-          onSetData={handle1stInputData}
+          onSetData={handleModelOne}
           closeHandler={() => setOpen1stCoin(false)}
           assets={coins}
         />
@@ -374,7 +260,7 @@ const Card = () => {
           aria-checked="true"
           tabIndex={0}
           data-headlessui-state="checked"
-          onClick={() => handleOpen("Swap")}
+          onClick={() => setSelectButton("Swap")}
         >
           <div
             className="grid grow place-items-center  mobile:min-w-[76px] px-3 mobile:px-2 h-9 mobile:h-7 text-sm mobile:text-xs rounded-full  font-medium whitespace-nowrap text-white"
@@ -395,7 +281,7 @@ const Card = () => {
           aria-checked="false"
           tabIndex={-1}
           data-headlessui-state=""
-          onClick={() => handleOpen("Liquidity")}
+          onClick={() => setSelectButton("Liquidity")}
         >
           <div
             className="grid grow place-items-center  mobile:min-w-[76px] px-3 mobile:px-2 h-9 mobile:h-7 text-sm mobile:text-xs  rounded-full  font-medium whitespace-nowrap text-[#ABC4FF]"
@@ -538,29 +424,29 @@ const Card = () => {
                 {/* {open2ndCoin && <Modal />} */}
                 <div></div>
               </div>
-              {quote && quote.routePlan && (
-                <div className="flex flex-row items-center text-white justify-between mt-3">
-                  {/* <label className="text-sm font-medium text-white">
-                    Route
-                  </label> */}
-                  <div className="flex items-center"></div>
-                  <div className="flex items-center">
-                    {quote &&
-                      quote.routePlan &&
-                      quote.routePlan.map((item: any, index: number) => (
-                        <React.Fragment key={index}>
-                          <label className="text-sm font-medium text-white">
-                            {item.swapInfo.label}({item.percent}%)
-                          </label>
-                          {index < quote.routePlan.length - 1 && (
-                            <span className="mx-2 text-white">&#8594;</span>
-                          )}
-                        </React.Fragment>
-                      ))}
-                  </div>
-                </div>
-              )}
-              {/* onhover disable */}
+              {/* {quote && quote.routePlan && ( 
+                // <div className="flex flex-row items-center text-white justify-between mt-3">
+                //    <label className="text-sm font-medium text-white">
+                //     Route
+                //   </label> 
+                //   <div className="flex items-center"></div>
+                //   <div className="flex items-center">
+                //     {quote &&
+                //       quote.routePlan &&
+                //       quote.routePlan.map((item: any, index: number) => (
+                //         <React.Fragment key={index}>
+                //           <label className="text-sm font-medium text-white">
+                //             {item.swapInfo.label}({item.percent}%)
+                //           </label>
+                //           {index < quote.routePlan.length - 1 && (
+                //             <span className="mx-2 text-white">&#8594;</span>
+                //           )}
+                //         </React.Fragment>
+                //       ))}
+                //   </div>
+                // </div>
+              // )}
+               onhover disable */}
               <div className="inputBox flexCenter">
                 {
                   <button
@@ -571,11 +457,8 @@ const Card = () => {
                       loading ||
                       maxBalance < getInputAmount() ||
                       !quote ||
-                      (quote &&
-                        quote.routePlan &&
-                        quote.routePlan.length === 0) ||
                       getInputAmount() === 0
-                        ? "hover:cursor-not-allowed opacity-50 "
+                        ? "hover:cursor-not-allowed opacity-50"
                         : "hover:cursor-pointer opacity-100"
                     }`}
                     onClick={async () => {
@@ -586,18 +469,7 @@ const Card = () => {
                       if (getInputAmount() === 0) {
                         return;
                       }
-                      if (
-                        quote &&
-                        quote.routePlan &&
-                        quote?.routePlan.length !== 0
-                      ) {
-                        if (publicKey) {
-                          console.log("swap");
-                          await signAndSendTransaction();
-                          return;
-                        }
-                      }
-                      toast.error("No route found");
+                      await swapFromWhirlpool();
                       return;
                     }}
                   >

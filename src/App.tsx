@@ -11,8 +11,7 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { ToastContainer } from "react-toastify";
 
 const App = () => {
-  const endpoint =
-    "https://mainnet.helius-rpc.com/?api-key=3f33bb5c-708a-4f5f-b9b3-8794bbdd58f2";
+  const endpoint = "https://api.devnet.solana.com/";
 
   const wallets = useMemo(() => [], []);
 

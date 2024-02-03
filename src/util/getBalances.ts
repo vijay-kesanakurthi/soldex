@@ -1,7 +1,7 @@
 import { PublicKey, Connection } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, unpackAccount } from "@solana/spl-token";
 import { DecimalUtil } from "@orca-so/common-sdk";
-import { coins } from "../ui/hero/components/coins";
+import { coins } from "./devCoins";
 import BN from "bn.js";
 
 export type BlanceDetails = {
@@ -40,16 +40,11 @@ export async function getAllTokensByOwner(
 
     // Deserialize
     const parsed_token_account = unpackAccount(value.pubkey, value.account);
-    // Use the mint address to determine which token account is for which token
     const mint = parsed_token_account.mint;
     const token_def = token_defs.find((t) => t.mintAddress === mint.toBase58());
-    console.log("token_def:", token_def, "mint:", mint.toBase58());
-    // Ignore non-devToken accounts
     if (token_def === undefined) continue;
 
-    // The balance is "amount"
     const amount = parsed_token_account.amount;
-    // The balance is managed as an integer value, so it must be converted for UI display
     const ui_amount = DecimalUtil.fromBN(
       new BN(amount.toString()),
       token_def.decimals
@@ -109,7 +104,7 @@ export async function getTokenBalanceByMint(
   return account;
 }
 
-const url = `https://mainnet.helius-rpc.com/?api-key=5839e6aa-7ba3-44d2-99ca-2ead557ec729`;
+const url = `https://api.devnet.solana.com/`;
 
 export const getRecentPrioritizationFees = async (): Promise<PriorityFee> => {
   const response = await fetch(url, {
