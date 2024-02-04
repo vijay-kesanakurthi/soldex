@@ -1,30 +1,328 @@
-import React, { useEffect } from "react";
-import { CoinModel } from "./coins";
+import { useEffect, useMemo, useState } from "react";
+import { CoinModel } from "../../../util/coinModel";
+import { coins } from "../../../util/devCoins";
+import Modal from "../../modal/modal";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { getCoin, network, networkUrl } from "../../../util/constants";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { SetupWhirlpool } from "../../../util/whirlpool_setup";
+import {
+  BlanceDetails,
+  getTokenBalanceByMint,
+} from "../../../util/getBalances";
+import {
+  closePosition,
+  getPoolQuote,
+  getPositions,
+  openPosition,
+  positionData,
+} from "../../../util/liquidity_pool";
+import { IncreaseLiquidityQuote } from "@orca-so/whirlpools-sdk";
+import { DecimalUtil } from "@orca-so/common-sdk";
+import { toast } from "react-toastify";
+import { BN } from "bn.js";
 
-interface Props {
-  handlefirstInput: () => void;
-  fromAsset: CoinModel;
-  toAsset: CoinModel;
-  open1stCoin: boolean;
-  handleSecondInput: () => void;
-  open2ndCoin: boolean;
-}
-import { WhirlpoolContext, WhirlpoolClient } from "@orca-so/whirlpools-sdk";
-import { getSwapQuote, getWhirlpoolPubkey } from "../../../util/swap";
-import { PublicKey } from "@solana/web3.js";
+const Liquidity = () => {
+  const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
+  const [toAsset, setToAsset] = useState<CoinModel>(coins[1]);
+  const [open1stCoin, setOpen1stCoin] = useState(false);
+  const [open2ndCoin, setOpen2ndCoin] = useState(false);
+  const [maxBalance, setMaxBalance] = useState<number>(0);
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout>();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [quote, setQuote] = useState<IncreaseLiquidityQuote | null>(null);
+  const [positions, setPositions] = useState<positionData[]>([]);
+  const [ctx, setCtx] = useState<any>(null);
+  const [client, setClient] = useState<any>(null);
+  const [lower_tick_index, setLowerTickIndex] = useState<number>(0);
+  const [upper_tick_index, setUpperTickIndex] = useState<number>(0);
 
-const Liquidity: React.FC<Props> = ({
-  handlefirstInput,
-  fromAsset,
-  toAsset,
-  open1stCoin,
-  handleSecondInput,
-  open2ndCoin,
-}) => {
+  const wallet = useWallet();
+  const connection = useMemo(() => new Connection(networkUrl, "confirmed"), []);
+
+  useEffect(() => {
+    if (wallet) {
+      SetupWhirlpool(wallet).then(({ ctx, client }) => {
+        setCtx(ctx);
+        setClient(client);
+      });
+    }
+  }, [wallet]);
+
+  // get max balance of the selected token
+  useEffect(() => {
+    if (wallet && connection) {
+      getTokenBalanceByMint(
+        wallet.publicKey!,
+        connection,
+        fromAsset.mintAddress
+      ).then((data: BlanceDetails) => {
+        setMaxBalance(Number(data.ui_amount));
+      });
+    } else {
+      setMaxBalance(0);
+    }
+  }, [fromAsset, connection, wallet]);
+
+  // get quote from whirlpool on change of fromAsset or toAsset
+  useEffect(() => {
+    getQuoteFromWhirlpool();
+  }, [fromAsset, toAsset]);
+
+  useEffect(() => {
+    if (client) {
+      getPositionsFromPool().then((data) => {
+        setPositions(data);
+      });
+    }
+  }, [client]);
+
+  // get quote from whirlpool on input change
+  const handleInputChange = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    const newTimeoutId = setTimeout(() => {
+      getQuoteFromWhirlpool();
+    }, 500);
+    setTimeoutId(newTimeoutId);
+  };
+  const CustomToastToOpenLink = (transactionId: string) => {
+    return (
+      <div className="">
+        <a
+          href={`https://solscan.io/tx/${transactionId}?cluster=${network}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Transaction Successful Click to view transaction
+        </a>
+      </div>
+    );
+  };
+
+  // get quote from whirlpool
+  async function getQuoteFromWhirlpool() {
+    if (!ctx || !client) {
+      return;
+    }
+    const amount: number = getInputAmount();
+
+    if (amount === 0) {
+      setOutputAmount(0);
+      return;
+    }
+    console.log("getting quote");
+    try {
+      const { quote, lower_tick_index, upper_tick_index } = await getPoolQuote(
+        client,
+        fromAsset,
+        toAsset,
+        amount
+      );
+      setQuote(quote);
+      setOutputAmount(
+        Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals))
+      );
+      setLowerTickIndex(lower_tick_index);
+      setUpperTickIndex(upper_tick_index);
+    } catch (e) {
+      console.log("Error getting quote", e);
+      setQuote(null);
+      setOutputAmount(0);
+    }
+  }
+
+  async function openPositionAndAddLiquidity() {
+    if (!ctx || !client || !quote || loading || !wallet) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const transaction = await openPosition(
+        ctx,
+        client,
+        quote,
+        fromAsset,
+        toAsset,
+        lower_tick_index,
+        upper_tick_index
+      );
+      const signature = await transaction.buildAndExecute();
+      console.log("signature:", signature);
+
+      // Wait for the transaction to complete
+      const latest_blockhash = await ctx.connection.getLatestBlockhash();
+      await ctx.connection.confirmTransaction(
+        { signature, ...latest_blockhash },
+        "confirmed"
+      );
+      toast.success(CustomToastToOpenLink(signature));
+      setLoading(false);
+    } catch (e) {
+      console.log("Error opening position", e);
+      toast.error("Error opening position");
+      setLoading(false);
+    }
+  }
+
+  async function closePoolAndWithdraw(position_key: PublicKey) {
+    if (!ctx || !client || loading || !wallet) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const transaction = await closePosition(ctx, client, position_key);
+      const signature = await transaction.buildAndExecute();
+      console.log("signature:", signature);
+
+      // Wait for the transaction to complete
+      const latest_blockhash = await ctx.connection.getLatestBlockhash();
+      await ctx.connection.confirmTransaction(
+        { signature, ...latest_blockhash },
+        "confirmed"
+      );
+      toast.success(CustomToastToOpenLink(signature));
+      setLoading(false);
+    } catch (e) {
+      console.log("Error opening position", e);
+      toast.error("Error opening position");
+      setLoading(false);
+    }
+  }
+
+  async function getPositionsFromPool(): Promise<positionData[]> {
+    try {
+      const positions = await getPositions(ctx, client);
+      console.log("positions", positions);
+      return positions;
+    } catch {
+      console.log("Error getting positions");
+      // some fake data
+      // export type positionData = {
+      //   whirlpool: PublicKey;
+      //   position: PublicKey;
+      //   tickLowerIndex: number;
+      //   tickUpperIndex: number;
+      //   liquidity: string;
+      //   positionMint: PublicKey;
+      //   tokensThatCanBeWithdrawn: TokenAmounts;
+      //   tokenA: PublicKey;
+      //   tokenB: PublicKey;
+      // };
+      return [
+        {
+          whirlpool: new PublicKey(
+            "So11111111111111111111111111111111111111112"
+          ),
+          position: new PublicKey(
+            "So11111111111111111111111111111111111111112"
+          ),
+          tickLowerIndex: 0,
+          tickUpperIndex: 0,
+          liquidity: "0",
+          positionMint: new PublicKey(
+            "So11111111111111111111111111111111111111112"
+          ),
+          tokensThatCanBeWithdrawn: {
+            tokenA: new BN(0),
+            tokenB: new BN(0),
+          },
+          tokenA: new PublicKey("H8UekPGwePSmQ3ttuYGPU1szyFfjZR4N53rymSFwpLPm"),
+          tokenB: new PublicKey("So11111111111111111111111111111111111111112"),
+        },
+        {
+          whirlpool: new PublicKey(
+            "So11111111111111111111111111111111111111112"
+          ),
+          position: new PublicKey(
+            "So11111111111111111111111111111111111111112"
+          ),
+          tickLowerIndex: 0,
+          tickUpperIndex: 0,
+          liquidity: "0",
+          positionMint: new PublicKey(
+            "So11111111111111111111111111111111111111112"
+          ),
+          tokensThatCanBeWithdrawn: {
+            tokenA: new BN(0),
+            tokenB: new BN(0),
+          },
+          tokenA: new PublicKey("So11111111111111111111111111111111111111112"),
+          tokenB: new PublicKey("BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k"),
+        },
+      ];
+    }
+  }
+
+  function getInputAmount(): number {
+    try {
+      const inputAmount = document.getElementById(
+        "fromAssetInputLiquidty"
+      ) as HTMLInputElement;
+      return Number(inputAmount.value);
+    } catch {
+      return 0;
+    }
+  }
+
+  function setOutputAmount(amount: number) {
+    try {
+      const outputAmount = document.getElementById(
+        "toAssetInputLiquidty"
+      ) as HTMLInputElement;
+      outputAmount.value = amount.toString();
+    } catch {
+      return 0;
+    }
+  }
+
+  const handlefirstInput = () => {
+    setOpen2ndCoin(false);
+    setOpen1stCoin((prev) => !prev);
+  };
+
+  const handleSecondInput = () => {
+    setOpen1stCoin(false);
+    setOpen2ndCoin((prev) => !prev);
+  };
+
+  const handleModelOne = async (data: number) => {
+    if (toAsset.mintAddress === coins[data].mintAddress) {
+      const tempAsset = fromAsset;
+      setFromAsset(toAsset);
+      setToAsset(tempAsset);
+    } else {
+      setFromAsset(coins[data]);
+    }
+  };
+
+  const handleModelTwo = (data: number) => {
+    if (fromAsset.mintAddress === coins[data].mintAddress) {
+      const tempAsset = fromAsset;
+      setFromAsset(toAsset);
+      setToAsset(tempAsset);
+    } else {
+      setToAsset(coins[data]);
+    }
+  };
+
   return (
     <>
+      {open2ndCoin && (
+        <Modal
+          onSetData={handleModelTwo}
+          closeHandler={() => setOpen2ndCoin(false)}
+          assets={coins}
+        />
+      )}
+      {open1stCoin && (
+        <Modal
+          onSetData={handleModelOne}
+          closeHandler={() => setOpen1stCoin(false)}
+          assets={coins}
+        />
+      )}
       <form
         action=""
         id="form"
@@ -62,6 +360,8 @@ const Liquidity: React.FC<Props> = ({
           <input
             name="fiat"
             type="number"
+            onChange={handleInputChange}
+            id="fromAssetInputLiquidty"
             required
             className="outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl"
           />
@@ -70,7 +370,7 @@ const Liquidity: React.FC<Props> = ({
         <div className="relative h-8 my-4">
           <div className="Row flex absolute h-full items-center transition-all left-4">
             <div className="Icon grid h-max w-max p-1 text-[#39D0D8]">
-              <svg
+              {/* <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -84,16 +384,16 @@ const Liquidity: React.FC<Props> = ({
                   strokeLinejoin="round"
                   d="M12 4.5v15m7.5-7.5h-15"
                 />
-              </svg>
+              </svg> */}
             </div>
             <div className="opacity-100">
               <div
                 className="transition-all duration-200 ease overflow-hidden"
                 style={{ transition: "all 200ms ease 0s" }}
               >
-                <div className="Row flex font-medium text-sm text-[#ABC4FF] w-max">
-                  1 RAY ≈ 0.013059 SOL
-                  <div className="ml-2 clickable">⇋</div>
+                <div className="Row flex  font-medium text-sm text-[#ABC4FF] w-max">
+                  Max : {maxBalance}
+                  {/* <div className="ml-2 clickable">⇋</div> */}
                 </div>
               </div>
             </div>
@@ -184,6 +484,7 @@ const Liquidity: React.FC<Props> = ({
           <input
             name="fiat"
             type="number"
+            id="toAssetInputLiquidty"
             className="outline-none h-full font-medium text-base text-white p-0 bg-transparent w-full rounded-br-xl rounded-tr-xl"
             disabled
           />
@@ -191,8 +492,20 @@ const Liquidity: React.FC<Props> = ({
           <div></div>
         </div>
         <div className="inputBox flexCenter">
-          <button type="button" id="exchangeBtn" className="border-2 p-auto">
-            Enter an amount
+          <button
+            type="button"
+            id="exchangeBtn"
+            className="border-2 p-auto"
+            onClick={openPositionAndAddLiquidity}
+          >
+            {loading ? (
+              <div
+                className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
+                role="status"
+              ></div>
+            ) : (
+              "Add Liquidity"
+            )}
           </button>
         </div>
       </form>
@@ -202,10 +515,35 @@ const Liquidity: React.FC<Props> = ({
         </div>
         <div className="Card rounded-3xl p-6 mt-6 mobile:py-5 mobile:px-3 bg-cyberpunk-card-bg">
           <div className="Col List overflow-y-scroll flex flex-col gap-6 mobile:gap-5" />
-          <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
+          {/* <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
             If you staked your LP tokens in a farm, unstake them to see them
             here
-          </div>
+          </div> */}
+          {positions.map((position, index) => {
+            const coin1 = getCoin(position.tokenA);
+            const coin2 = getCoin(position.tokenB);
+            return (
+              <div
+                key={index}
+                className="Row flex justify-between items-center gap-4 text-white m-2 mb-4 border-2 rounded-lg p-2"
+              >
+                <div>
+                  {coin1?.tokenSymbol} - {coin2?.tokenSymbol} :
+                  {position.liquidity}
+                </div>
+                <div>
+                  <button
+                    onClick={() => {
+                      closePoolAndWithdraw(position.position);
+                    }}
+                    className="Button bg-white  border-2 select-none justify-center gap-2 px-4 py-2.5 rounded-xl mobile:rounded-lg font-medium whitespace-nowrap appearance-none bg-formkit-thumb text-formkit-thumb-text-normal clickable clickable-filter-effect flex items-center frosted-glass-teal opacity-80"
+                  >
+                    <div>Withdraw</div>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
       <div className="mt-12 max-w-[456px] self-center">

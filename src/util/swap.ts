@@ -39,7 +39,7 @@ export async function getSwapQuote(
 }
 
 export const getPoolPubKey = (token: string, token2: string) =>
-  keyMap[token]?.[token2] || new PublicKey("");
+  keyMap[token]?.[token2] || "";
 
 export async function getWhirlpoolPubkey(
   token1: PublicKey,

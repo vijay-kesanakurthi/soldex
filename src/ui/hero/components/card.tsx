@@ -55,6 +55,7 @@ const Card = () => {
     //   setWhirlpoolPublicKey(pubkey);
     // });
     const result = getPoolPubKey(fromAsset.tokenSymbol, toAsset.tokenSymbol);
+    console.log("whirlpoolKey:", result);
     setWhirlpoolPublicKey(result);
   }, [fromAsset, toAsset]);
 
@@ -677,16 +678,7 @@ const Card = () => {
             </div>
           </>
         )}
-        {selectButton === "Liquidity" && (
-          <Liquidity
-            fromAsset={fromAsset}
-            toAsset={toAsset}
-            handleSecondInput={handleSecondInput}
-            handlefirstInput={handlefirstInput}
-            open2ndCoin={open2ndCoin}
-            open1stCoin={open1stCoin}
-          />
-        )}
+        {selectButton === "Liquidity" && <Liquidity />}
       </div>
     </>
   );

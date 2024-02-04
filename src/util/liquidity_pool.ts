@@ -122,6 +122,18 @@ export async function getPoolQuote(
       token_b.decimals
     )
   );
+  console.log(
+    `${coin_a.tokenName} est input:`,
+    DecimalUtil.fromBN(quote.tokenEstA, token_a.decimals).toFixed(
+      token_a.decimals
+    )
+  );
+  console.log(
+    `${coin_b.tokenName} est input:`,
+    DecimalUtil.fromBN(quote.tokenEstB, token_b.decimals).toFixed(
+      token_b.decimals
+    )
+  );
 
   console.log(quote);
 

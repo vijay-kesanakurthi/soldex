@@ -1,4 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
+import { coins } from "./devCoins";
 
 // export const network: string = "mainnet";
 // export const networkUrl: string =
@@ -74,3 +75,7 @@ export const keyMap =
         RAY: { SOL: RAY_SOL, USDC: RAY_USDC, USDT: RAY_USDT, ORCA: RAY_ORCA },
         SOL: { USDC: USDC_SOL, USDT: USDT_SOL, ORCA: ORCA_SOL, RAY: RAY_SOL },
       };
+
+// function to get CoinModel from token mintAdreess
+export const getCoin = (mintAddress: PublicKey) =>
+  coins.find((coin) => coin.mintAddress == mintAddress.toBase58());
