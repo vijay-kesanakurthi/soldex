@@ -1,11 +1,12 @@
 import { PublicKey } from "@solana/web3.js";
 
-export const network: string = "mainnet";
-export const networkUrl: string =
-  "https://mainnet.helius-rpc.com/?api-key=3f33bb5c-708a-4f5f-b9b3-8794bbdd58f2";
+// export const network: string = "mainnet";
+// export const networkUrl: string =
+//   "https://mainnet.helius-rpc.com/?api-key=3f33bb5c-708a-4f5f-b9b3-8794bbdd58f2";
 
-// export const network: string = "devnet";
-// export const networkUrl: string = "https://devnet.helius-rpc.com/?api-key=3f33bb5c-708a-4f5f-b9b3-8794bbdd58f2";
+export const network: string = "devnet";
+export const networkUrl: string =
+  "https://devnet.helius-rpc.com/?api-key=3f33bb5c-708a-4f5f-b9b3-8794bbdd58f2";
 
 const DEVNET_WHIRLPOOLS_CONFIG = new PublicKey(
   "FcrweFY1G9HJAHG5inkGB6pKg1HZ6x9UC2WioAfWrGkR"
@@ -27,10 +28,49 @@ const RAY_USDC = new PublicKey("96UbjyFmQY1JLpTvRujrkABxm1ft5hQvSVnv4JbagTMZ");
 const RAY_USDT = new PublicKey("99MPQXfGCHG1Lk1UREKetMuCPkYMHqkPmc5vFB9zoKBc");
 const RAY_ORCA = new PublicKey("2ntusSb3dL7LBuTys6wG9pAyB3hWvaei1oa2MucX3Pct");
 
-export const keyMap = {
-  USDC: { SOL: USDC_SOL, USDT: USDC_USDT, ORCA: ORCA_USDC, RAY: RAY_USDC },
-  USDT: { SOL: USDT_SOL, USDC: USDC_USDT, ORCA: ORCA_USDT, RAY: RAY_USDT },
-  ORCA: { SOL: ORCA_SOL, USDC: ORCA_USDC, USDT: ORCA_USDT, RAY: RAY_ORCA },
-  RAY: { SOL: RAY_SOL, USDC: RAY_USDC, USDT: RAY_USDT, ORCA: RAY_ORCA },
-  SOL: { USDC: USDC_SOL, USDT: USDT_SOL, ORCA: ORCA_SOL, RAY: RAY_SOL },
-};
+const SOL_devUSDT = new PublicKey(
+  "3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt"
+);
+const devUSDC_devUSDT = new PublicKey(
+  "63cMwvN8eoaD39os9bKP8brmA7Xtov9VxahnPufWCSdg"
+);
+
+const devSAMO_devUSDC = new PublicKey(
+  "EgxU92G34jw6QDG9RuTX9StFg1PmHuDqkRKAE5kVEiZ4"
+);
+
+const devTMAC_devUSDC = new PublicKey(
+  "H3xhLrSEyDFm6jjG42QezbvhSxF5YHW75VdGUnqeEg5y"
+);
+
+export const keyMap =
+  network === "devnet"
+    ? {
+        SOL: { devUSDT: SOL_devUSDT },
+        devUSDC: { devUSDT: devUSDC_devUSDT },
+        devSAMO: { devUSDC: devSAMO_devUSDC },
+        devTMAC: { devUSDC: devTMAC_devUSDC },
+        devUSDT: { SOL: SOL_devUSDT, devUSDC: devUSDC_devUSDT },
+      }
+    : {
+        USDC: {
+          SOL: USDC_SOL,
+          USDT: USDC_USDT,
+          ORCA: ORCA_USDC,
+          RAY: RAY_USDC,
+        },
+        USDT: {
+          SOL: USDT_SOL,
+          USDC: USDC_USDT,
+          ORCA: ORCA_USDT,
+          RAY: RAY_USDT,
+        },
+        ORCA: {
+          SOL: ORCA_SOL,
+          USDC: ORCA_USDC,
+          USDT: ORCA_USDT,
+          RAY: RAY_ORCA,
+        },
+        RAY: { SOL: RAY_SOL, USDC: RAY_USDC, USDT: RAY_USDT, ORCA: RAY_ORCA },
+        SOL: { USDC: USDC_SOL, USDT: USDT_SOL, ORCA: ORCA_SOL, RAY: RAY_SOL },
+      };
