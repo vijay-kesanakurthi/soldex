@@ -1,3 +1,4 @@
+import { positionData } from "./liquidity_pool";
 import { PublicKey } from "@solana/web3.js";
 import {
   WhirlpoolContext,
@@ -33,7 +34,8 @@ import { BN } from "bn.js";
 export async function getPoolQuote(
   client: WhirlpoolClient,
   coin_a: CoinModel,
-  coin_b: CoinModel
+  coin_b: CoinModel,
+  amount: number
 ): Promise<IncreaseLiquidityQuote> {
   const poolAddress = getPoolPubKey(coin_a.mintAddress, coin_b.mintAddress);
   const whirlpool = await client.getPool(poolAddress);
@@ -46,7 +48,11 @@ export async function getPoolQuote(
   // Set price range, amount of tokens to deposit, and acceptable slippage
   const lower_price = price.times(0.95);
   const upper_price = price.times(1.05);
-  const dev_usdc_amount = DecimalUtil.toBN(new Decimal("1" /* devUSDC */), 6);
+
+  const dev_usdc_amount = DecimalUtil.toBN(
+    DecimalUtil.fromNumber(amount),
+    coin_a.decimals
+  );
   const slippage = Percentage.fromFraction(10, 1000); // 1%
 
   // Adjust price range (not all prices can be set, only a limited number of prices are available for range specification)
@@ -136,14 +142,77 @@ export async function getPoolQuote(
   return quote;
 }
 
-export async function openPosition() {}
+export async function openPosition(
+  ctx: WhirlpoolContext,
+  client: WhirlpoolClient,
+  quote: IncreaseLiquidityQuote,
+  coin_a: CoinModel,
+  coin_b: CoinModel
+): Promise<TransactionBuilder> {
+  const poolAddress = getPoolPubKey(coin_a.mintAddress, coin_b.mintAddress);
+
+  const whirlpool = await client.getPool(poolAddress);
+
+  const current_postions: positionData[] = await getPositions(ctx, client);
+  const findPosition = current_postions.filter((position) =>
+    position.whirlpool.equals(poolAddress)
+  );
+
+  if (findPosition.length > 0) {
+    console.log("position already exists");
+    const whirlpool_data = whirlpool.getData();
+
+    const sqrt_price_x64 = whirlpool_data.sqrtPrice;
+    const price = PriceMath.sqrtPriceX64ToPrice(sqrt_price_x64, 6, 6);
+    console.log("price:", price.toFixed(6));
+
+    // Set price range, amount of tokens to deposit, and acceptable slippage
+    const lower_price = price.times(0.95);
+    const upper_price = price.times(1.05);
+    const lower_tick_index = PriceMath.priceToInitializableTickIndex(
+      lower_price,
+      coin_a.decimals,
+      coin_b.decimals,
+      whirlpool_data.tickSpacing
+    );
+    const upper_tick_index = PriceMath.priceToInitializableTickIndex(
+      upper_price,
+
+      coin_a.decimals,
+      coin_b.decimals,
+      whirlpool_data.tickSpacing
+    );
+
+    const open_position_tx = await whirlpool.openPosition(
+      lower_tick_index,
+      upper_tick_index,
+      quote
+    );
+    return open_position_tx.tx;
+  }
+  const position = await client.getPosition(findPosition[0].position);
+  const increase_liquidity_tx = await position.increaseLiquidity(quote);
+  return increase_liquidity_tx;
+}
 
 // async function open_whirl
+
+export type positionData = {
+  whirlpool: PublicKey;
+  position: PublicKey;
+  tickLowerIndex: number;
+  tickUpperIndex: number;
+  liquidity: string;
+  positionMint: PublicKey;
+
+  tokenA: PublicKey;
+  tokenB: PublicKey;
+};
 
 export async function getPositions(
   ctx: WhirlpoolContext,
   client: WhirlpoolClient
-) {
+): Promise<positionData[]> {
   console.log("wallet:", ctx.wallet.publicKey.toBase58());
   const token_accounts = (
     await ctx.connection.getTokenAccountsByOwner(ctx.wallet.publicKey, {
@@ -188,6 +257,7 @@ export async function getPositions(
     (pubkey, i) => whirlpool_position_candidate_datas[i] !== null
   );
   console.log("whirlpool_positions:", whirlpool_positions);
+  const positions_data: positionData[] = [];
 
   // Output the address of the positions
   // whirlpool_positions.map((position_pubkey) =>
@@ -257,7 +327,20 @@ export async function getPositions(
       "\tamountB:",
       DecimalUtil.fromBN(amounts.tokenB, token_b.decimals).toString()
     );
+    positions_data.push({
+      whirlpool: data.whirlpool,
+      position: p || new PublicKey(""),
+      tickLowerIndex: data.tickLowerIndex,
+      tickUpperIndex: data.tickUpperIndex,
+      liquidity: data.liquidity.toString(),
+      positionMint: data.positionMint,
+      // positionOwner: data.rewardInfos[0].,
+      // positionTokenAccount: data.positionTokenAccount,
+      tokenA: token_a.mint,
+      tokenB: token_b.mint,
+    });
   }
+  return positions_data;
 }
 
 export async function closePosition(
