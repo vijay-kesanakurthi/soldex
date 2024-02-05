@@ -94,18 +94,7 @@ const Liquidity = () => {
   useEffect(() => {
     if (client) {
       setPositionLoading(true);
-      getPositionsFromPool()
-        .then((data) => {
-          setPositions(data);
-          setPositionLoading(false);
-          for (let i = 0; i < data.length; i++) {
-            setWithdrawLoadingArray((prev) => [...prev, false]);
-          }
-        })
-        .catch((e) => {
-          console.log("Error getting positions", e);
-          setPositionLoading(false);
-        });
+      getPositionsFromPool();
     }
   }, [client]);
 
@@ -205,13 +194,8 @@ const Liquidity = () => {
       );
       toast.success(CustomToastToOpenLink(signature));
       setPositionLoading(true);
-      getPositionsFromPool().then((data) => {
-        setPositions(data);
-        setPositionLoading(false);
-        for (let i = 0; i < data.length; i++) {
-          setWithdrawLoadingArray((prev) => [...prev, false]);
-        }
-      });
+      getPositionsFromPool();
+
       setLoading(false);
     } catch (e) {
       console.log("Error opening position", e);
@@ -242,13 +226,7 @@ const Liquidity = () => {
       );
       toast.success(CustomToastToOpenLink(signature));
       setPositionLoading(true);
-      getPositionsFromPool().then((data) => {
-        setPositions(data);
-        setPositionLoading(false);
-        for (let i = 0; i < data.length; i++) {
-          setWithdrawLoadingArray((prev) => [...prev, false]);
-        }
-      });
+      getPositionsFromPool();
     } catch (e) {
       console.log("Error closing position", e);
       toast.error("Error in Withdrawal");
@@ -262,11 +240,18 @@ const Liquidity = () => {
 
   async function getPositionsFromPool(): Promise<positionData[]> {
     try {
+      setPositionLoading(true);
       const positions = await getPositions(ctx!, client!);
       console.log("positions", positions);
+      setPositions(positions);
+      setPositionLoading(false);
+      for (let i = 0; i < positions.length; i++) {
+        setWithdrawLoadingArray((prev) => [...prev, false]);
+      }
       return positions;
     } catch {
       console.log("Error getting positions");
+      setPositionLoading(false);
       return [];
     }
   }
