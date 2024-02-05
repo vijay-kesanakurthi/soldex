@@ -94,13 +94,18 @@ const Liquidity = () => {
   useEffect(() => {
     if (client) {
       setPositionLoading(true);
-      getPositionsFromPool().then((data) => {
-        setPositions(data);
-        setPositionLoading(false);
-        for (let i = 0; i < data.length; i++) {
-          setWithdrawLoadingArray((prev) => [...prev, false]);
-        }
-      });
+      getPositionsFromPool()
+        .then((data) => {
+          setPositions(data);
+          setPositionLoading(false);
+          for (let i = 0; i < data.length; i++) {
+            setWithdrawLoadingArray((prev) => [...prev, false]);
+          }
+        })
+        .catch((e) => {
+          console.log("Error getting positions", e);
+          setPositionLoading(false);
+        });
     }
   }, [client]);
 
@@ -170,9 +175,9 @@ const Liquidity = () => {
       quote.tokenEstB.toString()
     );
     if (
-      Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals)) <
+      Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals)) >
         maxBalance2 ||
-      Number(DecimalUtil.fromBN(quote.tokenEstA, fromAsset.decimals)) <
+      Number(DecimalUtil.fromBN(quote.tokenEstA, fromAsset.decimals)) >
         maxBalance
     ) {
       toast.error("Insufficient Balance");
