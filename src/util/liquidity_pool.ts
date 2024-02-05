@@ -263,82 +263,86 @@ export async function getPositions(
   //   console.log("position:", position_pubkey.toBase58())
   // );
   for (let i = 0; i < whirlpool_positions.length; i++) {
-    const p = whirlpool_positions[i];
+    try {
+      const p = whirlpool_positions[i];
 
-    // Get the status of the position
-    const position = await client.getPosition(p);
-    const data = position.getData();
+      // Get the status of the position
+      const position = await client.getPosition(p);
+      const data = position.getData();
 
-    // Get the pool to which the position belongs
-    const pool = await client.getPool(data.whirlpool);
-    const token_a = pool.getTokenAInfo();
-    const token_b = pool.getTokenBInfo();
-    const price = PriceMath.sqrtPriceX64ToPrice(
-      pool.getData().sqrtPrice,
-      token_a.decimals,
-      token_b.decimals
-    );
+      // Get the pool to which the position belongs
+      const pool = await client.getPool(data.whirlpool);
+      const token_a = pool.getTokenAInfo();
+      const token_b = pool.getTokenBInfo();
+      const price = PriceMath.sqrtPriceX64ToPrice(
+        pool.getData().sqrtPrice,
+        token_a.decimals,
+        token_b.decimals
+      );
 
-    // Get the price range of the position
-    const lower_price = PriceMath.tickIndexToPrice(
-      data.tickLowerIndex,
-      token_a.decimals,
-      token_b.decimals
-    );
-    const upper_price = PriceMath.tickIndexToPrice(
-      data.tickUpperIndex,
-      token_a.decimals,
-      token_b.decimals
-    );
+      // Get the price range of the position
+      const lower_price = PriceMath.tickIndexToPrice(
+        data.tickLowerIndex,
+        token_a.decimals,
+        token_b.decimals
+      );
+      const upper_price = PriceMath.tickIndexToPrice(
+        data.tickUpperIndex,
+        token_a.decimals,
+        token_b.decimals
+      );
 
-    // Calculate the amount of tokens that can be withdrawn from the position
-    const amounts: TokenAmounts = PoolUtil.getTokenAmountsFromLiquidity(
-      data.liquidity,
-      pool.getData().sqrtPrice,
-      PriceMath.tickIndexToSqrtPriceX64(data.tickLowerIndex),
-      PriceMath.tickIndexToSqrtPriceX64(data.tickUpperIndex),
-      true
-    );
+      // Calculate the amount of tokens that can be withdrawn from the position
+      const amounts: TokenAmounts = PoolUtil.getTokenAmountsFromLiquidity(
+        data.liquidity,
+        pool.getData().sqrtPrice,
+        PriceMath.tickIndexToSqrtPriceX64(data.tickLowerIndex),
+        PriceMath.tickIndexToSqrtPriceX64(data.tickUpperIndex),
+        true
+      );
 
-    // Output the status of the position
-    console.log("position:", i, p.toBase58());
-    // console.log("\twhirlpool address:", data.whirlpool.toBase58());
-    // console.log("\twhirlpool price:", price.toFixed(token_b.decimals));
-    // console.log("\ttokenA:", token_a.mint.toBase58());
-    // console.log("\ttokenB:", token_b.mint.toBase58());
-    // console.log("\tliquidity:", data.liquidity.toString());
-    // console.log("\t ");
-    // console.log(
-    //   "\tlower:",
-    //   data.tickLowerIndex,
-    //   lower_price.toFixed(token_b.decimals)
-    // );
-    // console.log(
-    //   "\tupper:",
-    //   data.tickUpperIndex,
-    //   upper_price.toFixed(token_b.decimals)
-    // );
-    // console.log(
-    //   "\tamountA:",
-    //   DecimalUtil.fromBN(amounts.tokenA, token_a.decimals).toString()
-    // );
-    // console.log(
-    //   "\tamountB:",
-    //   DecimalUtil.fromBN(amounts.tokenB, token_b.decimals).toString()
-    // );
-    positions_data.push({
-      whirlpool: data.whirlpool,
-      position: p || new PublicKey(""),
-      tickLowerIndex: data.tickLowerIndex,
-      tickUpperIndex: data.tickUpperIndex,
-      liquidity: data.liquidity.toString(),
-      positionMint: data.positionMint,
-      tokensThatCanBeWithdrawn: amounts,
-      // positionOwner: data.rewardInfos[0],
-      // positionTokenAccount: data.positionTokenAccount,
-      tokenA: token_a.mint,
-      tokenB: token_b.mint,
-    });
+      // Output the status of the position
+      console.log("position:", i, p.toBase58());
+      // console.log("\twhirlpool address:", data.whirlpool.toBase58());
+      // console.log("\twhirlpool price:", price.toFixed(token_b.decimals));
+      // console.log("\ttokenA:", token_a.mint.toBase58());
+      // console.log("\ttokenB:", token_b.mint.toBase58());
+      // console.log("\tliquidity:", data.liquidity.toString());
+      // console.log("\t ");
+      // console.log(
+      //   "\tlower:",
+      //   data.tickLowerIndex,
+      //   lower_price.toFixed(token_b.decimals)
+      // );
+      // console.log(
+      //   "\tupper:",
+      //   data.tickUpperIndex,
+      //   upper_price.toFixed(token_b.decimals)
+      // );
+      // console.log(
+      //   "\tamountA:",
+      //   DecimalUtil.fromBN(amounts.tokenA, token_a.decimals).toString()
+      // );
+      // console.log(
+      //   "\tamountB:",
+      //   DecimalUtil.fromBN(amounts.tokenB, token_b.decimals).toString()
+      // );
+      positions_data.push({
+        whirlpool: data.whirlpool,
+        position: p || new PublicKey(""),
+        tickLowerIndex: data.tickLowerIndex,
+        tickUpperIndex: data.tickUpperIndex,
+        liquidity: data.liquidity.toString(),
+        positionMint: data.positionMint,
+        tokensThatCanBeWithdrawn: amounts,
+        // positionOwner: data.rewardInfos[0],
+        // positionTokenAccount: data.positionTokenAccount,
+        tokenA: token_a.mint,
+        tokenB: token_b.mint,
+      });
+    } catch (error) {
+      continue;
+    }
   }
   console.log("positions_data:", positions_data);
   return positions_data;

@@ -28,6 +28,7 @@ const Liquidity = () => {
   const [open1stCoin, setOpen1stCoin] = useState(false);
   const [open2ndCoin, setOpen2ndCoin] = useState(false);
   const [maxBalance, setMaxBalance] = useState<number>(0);
+  const [maxBalance2, setMaxBalance2] = useState<number>(0);
   const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout>();
   const [loading, setLoading] = useState<boolean>(false);
   const [quote, setQuote] = useState<IncreaseLiquidityQuote | null>(null);
@@ -62,7 +63,21 @@ const Liquidity = () => {
     } else {
       setMaxBalance(0);
     }
-  }, [fromAsset, connection, wallet]);
+  }, [fromAsset, connection, wallet, positions]);
+
+  useEffect(() => {
+    if (wallet && connection) {
+      getTokenBalanceByMint(
+        wallet.publicKey!,
+        connection,
+        toAsset.mintAddress
+      ).then((data: BlanceDetails) => {
+        setMaxBalance2(Number(data.ui_amount));
+      });
+    } else {
+      setMaxBalance2(0);
+    }
+  }, [toAsset, connection, wallet, positions]);
 
   // get quote from whirlpool on change of fromAsset or toAsset
   useEffect(() => {
@@ -137,6 +152,18 @@ const Liquidity = () => {
     if (!ctx || !client || !quote || loading || !wallet) {
       return;
     }
+    console.log(
+      "quote:",
+      quote.tokenEstA.toString(),
+      quote.tokenEstB.toString()
+    );
+    if (
+      quote.tokenEstB.gtn(maxBalance2 * 10 ** toAsset.decimals) ||
+      quote.tokenEstA.gtn(maxBalance * 10 ** fromAsset.decimals)
+    ) {
+      toast.error("Insufficient Balance");
+      return;
+    }
     setLoading(true);
     try {
       const transaction = await openPosition(
@@ -158,6 +185,9 @@ const Liquidity = () => {
         "confirmed"
       );
       toast.success(CustomToastToOpenLink(signature));
+      getPositionsFromPool().then((data) => {
+        setPositions(data);
+      });
       setLoading(false);
     } catch (e) {
       console.log("Error opening position", e);
@@ -198,60 +228,7 @@ const Liquidity = () => {
       return positions;
     } catch {
       console.log("Error getting positions");
-      // some fake data
-      // export type positionData = {
-      //   whirlpool: PublicKey;
-      //   position: PublicKey;
-      //   tickLowerIndex: number;
-      //   tickUpperIndex: number;
-      //   liquidity: string;
-      //   positionMint: PublicKey;
-      //   tokensThatCanBeWithdrawn: TokenAmounts;
-      //   tokenA: PublicKey;
-      //   tokenB: PublicKey;
-      // };
-      return [
-        {
-          whirlpool: new PublicKey(
-            "So11111111111111111111111111111111111111112"
-          ),
-          position: new PublicKey(
-            "So11111111111111111111111111111111111111112"
-          ),
-          tickLowerIndex: 0,
-          tickUpperIndex: 0,
-          liquidity: "0",
-          positionMint: new PublicKey(
-            "So11111111111111111111111111111111111111112"
-          ),
-          tokensThatCanBeWithdrawn: {
-            tokenA: new BN(0),
-            tokenB: new BN(0),
-          },
-          tokenA: new PublicKey("H8UekPGwePSmQ3ttuYGPU1szyFfjZR4N53rymSFwpLPm"),
-          tokenB: new PublicKey("So11111111111111111111111111111111111111112"),
-        },
-        {
-          whirlpool: new PublicKey(
-            "So11111111111111111111111111111111111111112"
-          ),
-          position: new PublicKey(
-            "So11111111111111111111111111111111111111112"
-          ),
-          tickLowerIndex: 0,
-          tickUpperIndex: 0,
-          liquidity: "0",
-          positionMint: new PublicKey(
-            "So11111111111111111111111111111111111111112"
-          ),
-          tokensThatCanBeWithdrawn: {
-            tokenA: new BN(0),
-            tokenB: new BN(0),
-          },
-          tokenA: new PublicKey("So11111111111111111111111111111111111111112"),
-          tokenB: new PublicKey("BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k"),
-        },
-      ];
+      return [];
     }
   }
 
@@ -491,6 +468,16 @@ const Liquidity = () => {
           {/* {open2ndCoin && <Modal />} */}
           <div></div>
         </div>
+        <div className="opacity-100 mt-4 mb-4">
+          <div
+            className="transition-all duration-200 ease overflow-hidden"
+            style={{ transition: "all 200ms ease 0s" }}
+          >
+            <div className="Row flex  font-medium text-sm text-[#ABC4FF] w-max ml-5">
+              Max : {maxBalance2}
+            </div>
+          </div>
+        </div>
         <div className="inputBox flexCenter">
           <button
             type="button"
@@ -503,6 +490,10 @@ const Liquidity = () => {
                 className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
                 role="status"
               ></div>
+            ) : getInputAmount() === 0 ? (
+              "Enter an amount"
+            ) : !quote ? (
+              "Fetching ...."
             ) : (
               "Add Liquidity"
             )}
