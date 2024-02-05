@@ -17,10 +17,13 @@ import {
   openPosition,
   positionData,
 } from "../../../util/liquidity_pool";
-import { IncreaseLiquidityQuote } from "@orca-so/whirlpools-sdk";
+import {
+  IncreaseLiquidityQuote,
+  WhirlpoolClient,
+  WhirlpoolContext,
+} from "@orca-so/whirlpools-sdk";
 import { DecimalUtil } from "@orca-so/common-sdk";
 import { toast } from "react-toastify";
-import { BN } from "bn.js";
 
 const Liquidity = () => {
   const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
@@ -31,12 +34,16 @@ const Liquidity = () => {
   const [maxBalance2, setMaxBalance2] = useState<number>(0);
   const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout>();
   const [loading, setLoading] = useState<boolean>(false);
+  const [positionLoading, setPositionLoading] = useState<boolean>(false);
   const [quote, setQuote] = useState<IncreaseLiquidityQuote | null>(null);
   const [positions, setPositions] = useState<positionData[]>([]);
-  const [ctx, setCtx] = useState<any>(null);
-  const [client, setClient] = useState<any>(null);
+  const [ctx, setCtx] = useState<WhirlpoolContext | null>(null);
+  const [client, setClient] = useState<WhirlpoolClient | null>(null);
   const [lower_tick_index, setLowerTickIndex] = useState<number>(0);
   const [upper_tick_index, setUpperTickIndex] = useState<number>(0);
+  const [withdrawLoadingArray, setWithdrawLoadingArray] = useState<boolean[]>(
+    []
+  );
 
   const wallet = useWallet();
   const connection = useMemo(() => new Connection(networkUrl, "confirmed"), []);
@@ -86,8 +93,13 @@ const Liquidity = () => {
 
   useEffect(() => {
     if (client) {
+      setPositionLoading(true);
       getPositionsFromPool().then((data) => {
         setPositions(data);
+        setPositionLoading(false);
+        for (let i = 0; i < data.length; i++) {
+          setWithdrawLoadingArray((prev) => [...prev, false]);
+        }
       });
     }
   }, [client]);
@@ -158,8 +170,10 @@ const Liquidity = () => {
       quote.tokenEstB.toString()
     );
     if (
-      quote.tokenEstB.gtn(maxBalance2 * 10 ** toAsset.decimals) ||
-      quote.tokenEstA.gtn(maxBalance * 10 ** fromAsset.decimals)
+      Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals)) <
+        maxBalance2 ||
+      Number(DecimalUtil.fromBN(quote.tokenEstA, fromAsset.decimals)) <
+        maxBalance
     ) {
       toast.error("Insufficient Balance");
       return;
@@ -185,8 +199,13 @@ const Liquidity = () => {
         "confirmed"
       );
       toast.success(CustomToastToOpenLink(signature));
+      setPositionLoading(true);
       getPositionsFromPool().then((data) => {
         setPositions(data);
+        setPositionLoading(false);
+        for (let i = 0; i < data.length; i++) {
+          setWithdrawLoadingArray((prev) => [...prev, false]);
+        }
       });
       setLoading(false);
     } catch (e) {
@@ -196,12 +215,16 @@ const Liquidity = () => {
     }
   }
 
-  async function closePoolAndWithdraw(position_key: PublicKey) {
+  async function closePoolAndWithdraw(position_key: PublicKey, index: number) {
     if (!ctx || !client || loading || !wallet) {
       return;
     }
-    setLoading(true);
     try {
+      setWithdrawLoadingArray((prev) => {
+        const temp = [...prev];
+        temp[index] = true;
+        return temp;
+      });
       const transaction = await closePosition(ctx, client, position_key);
       const signature = await transaction.buildAndExecute();
       console.log("signature:", signature);
@@ -213,17 +236,28 @@ const Liquidity = () => {
         "confirmed"
       );
       toast.success(CustomToastToOpenLink(signature));
-      setLoading(false);
+      setPositionLoading(true);
+      getPositionsFromPool().then((data) => {
+        setPositions(data);
+        setPositionLoading(false);
+        for (let i = 0; i < data.length; i++) {
+          setWithdrawLoadingArray((prev) => [...prev, false]);
+        }
+      });
     } catch (e) {
-      console.log("Error opening position", e);
-      toast.error("Error opening position");
-      setLoading(false);
+      console.log("Error closing position", e);
+      toast.error("Error in Withdrawal");
+      setWithdrawLoadingArray((prev) => {
+        const temp = [...prev];
+        temp[index] = false;
+        return temp;
+      });
     }
   }
 
   async function getPositionsFromPool(): Promise<positionData[]> {
     try {
-      const positions = await getPositions(ctx, client);
+      const positions = await getPositions(ctx!, client!);
       console.log("positions", positions);
       return positions;
     } catch {
@@ -313,6 +347,11 @@ const Liquidity = () => {
             className="min-w-28 flexBetween cursor-pointer select-none "
           >
             <div className="flex items-center">
+              <img
+                className="Image h-8 w-8 rounded-full overflow-hidden transition-transform transform scale-[.7]"
+                src={fromAsset.icon}
+                alt={fromAsset.tokenSymbol}
+              />
               <div className="pr-2"></div>
               <div className="text-base font-medium text-white">
                 {fromAsset.tokenSymbol}
@@ -346,23 +385,7 @@ const Liquidity = () => {
         <div className="text-white my-1 mx-2 w-full"></div>
         <div className="relative h-8 my-4">
           <div className="Row flex absolute h-full items-center transition-all left-4">
-            <div className="Icon grid h-max w-max p-1 text-[#39D0D8]">
-              {/* <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth="1.5"
-                stroke="currentColor"
-                aria-hidden="true"
-                className="select-none h-6 w-6"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.5v15m7.5-7.5h-15"
-                />
-              </svg> */}
-            </div>
+            <div className="Icon grid h-max w-max p-1 text-[#39D0D8]"></div>
             <div className="opacity-100">
               <div
                 className="transition-all duration-200 ease overflow-hidden"
@@ -371,59 +394,6 @@ const Liquidity = () => {
                 <div className="Row flex  font-medium text-sm text-[#ABC4FF] w-max">
                   Max : {maxBalance}
                   {/* <div className="ml-2 clickable">⇋</div> */}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="Row flex absolute right-0 items-center">
-            <div className="Icon grid h-max w-max p-2 frosted-glass frosted-glass-teal rounded-full mr-4 clickable text-[#39D0D8] select-none">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth="1.5"
-                stroke="currentColor"
-                aria-hidden="true"
-                className="select-none h-4 w-4"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-                />
-              </svg>
-            </div>
-            <div className="clickable">
-              <div>
-                <div className="PopoverButton ">
-                  <div className="w-full h-full rounded clickable clickable-filter-effect">
-                    <svg width={36} height={36} viewBox="0 0 36 36">
-                      <circle
-                        r={9}
-                        cx="50%"
-                        cy="50%"
-                        fill="transparent"
-                        style={{ strokeWidth: 3, stroke: "#ffffff2e" }}
-                      />
-                      <circle
-                        id="bar"
-                        r={9}
-                        cx="50%"
-                        cy="50%"
-                        fill="transparent"
-                        strokeDasharray="56.548667764616276"
-                        strokeDashoffset="8.482300164692383"
-                        style={{
-                          strokeWidth: 3,
-                          stroke: "#92e1ffd9",
-                          transform: "rotate(-90deg)",
-                          transformOrigin: "center",
-                          strokeLinecap: "round",
-                          transition: "200ms",
-                        }}
-                      />
-                    </svg>
-                  </div>
                 </div>
               </div>
             </div>
@@ -438,6 +408,11 @@ const Liquidity = () => {
             className="min-w-28 flexBetween cursor-pointer select-none "
           >
             <div className="flex items-center">
+              <img
+                className="Image h-8 w-8 rounded-full overflow-hidden transition-transform transform scale-[.7]"
+                src={toAsset.icon}
+                alt={toAsset.tokenSymbol}
+              />
               <div className="pr-2"></div>
               <div className="text-base font-medium text-white">
                 {toAsset.tokenSymbol}
@@ -510,26 +485,71 @@ const Liquidity = () => {
             If you staked your LP tokens in a farm, unstake them to see them
             here
           </div> */}
+          {positionLoading && (
+            <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
+              Loading...
+            </div>
+          )}
           {positions.map((position, index) => {
             const coin1 = getCoin(position.tokenA);
             const coin2 = getCoin(position.tokenB);
             return (
               <div
                 key={index}
-                className="Row flex justify-between items-center gap-4 text-white m-2 mb-4 border-2 rounded-lg p-2"
+                className="flex  flex-col  items-center gap-4 text-white m-2 mb-4 border-2 rounded-lg p-2"
               >
-                <div>
-                  {coin1?.tokenSymbol} - {coin2?.tokenSymbol} :
-                  {position.liquidity}
+                <div className="flex  items-center">
+                  <img
+                    className="Image h-8 w-8 rounded-full overflow-hidden transition-transform transform scale-[.7]"
+                    src={coin1?.icon}
+                    alt={coin2?.tokenSymbol}
+                  />
+                  <img
+                    className="Image h-8 w-8 rounded-full overflow-hidden transition-transform transform scale-[.7]"
+                    src={coin2?.icon}
+                    alt={coin2?.tokenSymbol}
+                  />
+                  {coin1?.tokenSymbol} - {coin2?.tokenSymbol}
                 </div>
+                <div>
+                  <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
+                    Liquidity: {position.liquidity}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
+                    {coin1?.tokenSymbol}
+                    {": "}
+                    {DecimalUtil.fromBN(
+                      position.tokensThatCanBeWithdrawn.tokenA,
+                      coin1?.decimals
+                    ).toFixed(coin1?.decimals)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
+                    {coin2?.tokenSymbol}
+                    {": "}
+                    {DecimalUtil.fromBN(
+                      position.tokensThatCanBeWithdrawn.tokenB,
+                      coin2?.decimals
+                    ).toFixed(coin2?.decimals)}
+                  </div>
+                </div>
+
                 <div>
                   <button
                     onClick={() => {
-                      closePoolAndWithdraw(position.position);
+                      if (withdrawLoadingArray[index]) {
+                        return;
+                      }
+                      closePoolAndWithdraw(position.position, index);
                     }}
                     className="Button bg-white  border-2 select-none justify-center gap-2 px-4 py-2.5 rounded-xl mobile:rounded-lg font-medium whitespace-nowrap appearance-none bg-formkit-thumb text-formkit-thumb-text-normal clickable clickable-filter-effect flex items-center frosted-glass-teal opacity-80"
                   >
-                    <div>Withdraw</div>
+                    <div>
+                      {withdrawLoadingArray[index] ? "Loading..." : "Withdraw"}
+                    </div>
                   </button>
                 </div>
               </div>
