@@ -47,12 +47,16 @@ export async function getPoolQuote(
 
   // Get the current price of the pool
   const sqrt_price_x64 = whirlpool.getData().sqrtPrice;
-  const price = PriceMath.sqrtPriceX64ToPrice(sqrt_price_x64, 6, 6);
-  console.log("price:", price.toFixed(6));
+  const price = PriceMath.sqrtPriceX64ToPrice(
+    sqrt_price_x64,
+    coin_a.decimals,
+    coin_b.decimals
+  );
+  console.log("price:", price.toFixed(coin_a.decimals));
 
   // Set price range, amount of tokens to deposit, and acceptable slippage
-  const lower_price = price.times(0.95);
-  const upper_price = price.times(1.05);
+  const lower_price = price.times(0.99);
+  const upper_price = price.times(1.01);
 
   const dev_usdc_amount = DecimalUtil.toBN(
     DecimalUtil.fromNumber(amount),
