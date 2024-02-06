@@ -35,6 +35,7 @@ const Liquidity = () => {
   const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout>();
   const [loading, setLoading] = useState<boolean>(false);
   const [positionLoading, setPositionLoading] = useState<boolean>(false);
+  const [gettingQuote, setGettingQuote] = useState<boolean>(false);
   const [quote, setQuote] = useState<IncreaseLiquidityQuote | null>(null);
   const [positions, setPositions] = useState<positionData[]>([]);
   const [ctx, setCtx] = useState<WhirlpoolContext | null>(null);
@@ -134,6 +135,7 @@ const Liquidity = () => {
       return;
     }
     console.log("getting quote");
+    setGettingQuote(true);
     try {
       const { quote, lower_tick_index, upper_tick_index } = await getPoolQuote(
         client,
@@ -145,12 +147,14 @@ const Liquidity = () => {
       setOutputAmount(
         Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals))
       );
+      setGettingQuote(false);
       setLowerTickIndex(lower_tick_index);
       setUpperTickIndex(upper_tick_index);
     } catch (e) {
       console.log("Error getting quote", e);
       setQuote(null);
       setOutputAmount(0);
+      setGettingQuote(false);
     }
   }
 
@@ -195,7 +199,6 @@ const Liquidity = () => {
       toast.success(CustomToastToOpenLink(signature));
       setPositionLoading(true);
       getPositionsFromPool();
-
       setLoading(false);
     } catch (e) {
       console.log("Error opening position", e);
@@ -448,17 +451,34 @@ const Liquidity = () => {
             type="button"
             id="exchangeBtn"
             className="border-2 p-auto"
+            disabled={
+              loading ||
+              gettingQuote ||
+              getInputAmount() === 0 ||
+              !quote ||
+              Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals)) >
+                maxBalance2 ||
+              Number(DecimalUtil.fromBN(quote.tokenEstA, fromAsset.decimals)) >
+                maxBalance
+            }
             onClick={openPositionAndAddLiquidity}
           >
-            {loading ? (
+            {loading || gettingQuote ? (
               <div
                 className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
                 role="status"
               ></div>
             ) : getInputAmount() === 0 ? (
               "Enter an amount"
-            ) : !quote ? (
+            ) : gettingQuote ? (
               "Fetching ...."
+            ) : !quote ? (
+              "No Liquidity Available"
+            ) : Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals)) >
+                maxBalance2 ||
+              Number(DecimalUtil.fromBN(quote.tokenEstA, fromAsset.decimals)) >
+                maxBalance ? (
+              "Insufficient Balance"
             ) : (
               "Add Liquidity"
             )}
@@ -469,16 +489,17 @@ const Liquidity = () => {
         <div className="mb-6 text-xl font-medium text-white">
           Your Liquidity
         </div>
-        <div className="Card rounded-3xl p-6 mt-6 mobile:py-5 mobile:px-3 bg-cyberpunk-card-bg">
-          <div className="Col List overflow-y-scroll flex flex-col gap-6 mobile:gap-5" />
+        <div className="Card rounded-3xl p-6 mt-6 mobile:py-5 mobile:px-3 bg-cyberpunk-card-bg items-center justify-between">
+          <div className="Col List overflow-y-scroll flex flex-col gap-6 mobile:gap-5 " />
           {/* <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
             If you staked your LP tokens in a farm, unstake them to see them
             here
           </div> */}
           {positionLoading && (
-            <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
-              Loading...
-            </div>
+            <div
+              className="inline-block h-8 w-8 text-white animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
+              role="status"
+            ></div>
           )}
           {positions.map((position, index) => {
             const coin1 = getCoin(position.tokenA);
