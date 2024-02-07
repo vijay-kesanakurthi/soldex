@@ -24,9 +24,4 @@ export default defineConfig({
       crypto: "crypto-browserify",
     },
   },
-  build: {
-		rollupOptions: {
-			plugins: [inject({ Buffer: ['buffer', 'Buffer'] })],
-		},
-	},
 });
