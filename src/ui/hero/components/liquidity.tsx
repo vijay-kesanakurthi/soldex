@@ -198,7 +198,9 @@ const Liquidity = () => {
       );
       toast.success(CustomToastToOpenLink(signature));
       setPositionLoading(true);
-      getPositionsFromPool();
+      setTimeout(() => {
+        getPositionsFromPool();
+      }, 3000);
       setLoading(false);
     } catch (e) {
       console.log("Error opening position", e);
@@ -229,7 +231,11 @@ const Liquidity = () => {
       );
       toast.success(CustomToastToOpenLink(signature));
       setPositionLoading(true);
-      getPositionsFromPool();
+
+      // Delay loading of positions from pool for 2 seconds
+      setTimeout(() => {
+        getPositionsFromPool();
+      }, 3000);
     } catch (e) {
       console.log("Error closing position", e);
       toast.error("Error in Withdrawal");
@@ -459,7 +465,8 @@ const Liquidity = () => {
               Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals)) >
                 maxBalance2 ||
               Number(DecimalUtil.fromBN(quote.tokenEstA, fromAsset.decimals)) >
-                maxBalance
+                maxBalance ||
+              Number(DecimalUtil.fromBN(quote.tokenEstB, toAsset.decimals)) == 0
             }
             onClick={openPositionAndAddLiquidity}
           >
