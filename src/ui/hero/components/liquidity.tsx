@@ -200,7 +200,7 @@ const Liquidity = () => {
       setPositionLoading(true);
       setTimeout(() => {
         getPositionsFromPool();
-      }, 3000);
+      }, 8000);
       setLoading(false);
     } catch (e) {
       console.log("Error opening position", e);
@@ -235,7 +235,7 @@ const Liquidity = () => {
       // Delay loading of positions from pool for 2 seconds
       setTimeout(() => {
         getPositionsFromPool();
-      }, 3000);
+      }, 8000);
     } catch (e) {
       console.log("Error closing position", e);
       toast.error("Error in Withdrawal");
@@ -575,13 +575,14 @@ const Liquidity = () => {
           })}
         </div>
       </div>
+      {/*
       <div className="mt-12 max-w-[456px] self-center">
         <div className="mb-6 text-xl font-medium text-white">Create Pool</div>
         <div className="Card rounded-3xl p-6 mt-6 mobile:py-5 mobile:px-3 bg-cyberpunk-card-bg">
           <div className="Row flex gap-4">
             <div className="text-xs mobile:text-2xs font-medium text-[rgba(171,196,255,0.5)]">
               Create a liquidity pool on Raydium that can be traded on the swap
-              interface.{/* */}{" "}
+              interface.{" "}
               <a
                 tabIndex={0}
                 rel="nofollow noopener noreferrer"
@@ -591,7 +592,7 @@ const Liquidity = () => {
               >
                 Read the guide
               </a>{" "}
-              {/* */}before attempting.
+              before attempting.
             </div>
             <button className="Button select-none justify-center gap-2 px-4 py-2.5 rounded-xl mobile:rounded-lg font-medium whitespace-nowrap appearance-none bg-formkit-thumb text-formkit-thumb-text-normal clickable clickable-filter-effect flex items-center frosted-glass-teal opacity-80">
               <div className="Icon grid h-max w-max mr-2">
@@ -616,6 +617,7 @@ const Liquidity = () => {
           </div>
         </div>
       </div>
+       */}
     </>
   );
 };
