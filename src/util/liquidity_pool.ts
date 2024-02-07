@@ -1,9 +1,7 @@
-import { positionData } from "./liquidity_pool";
-import { PublicKey, TokenAmount } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import {
   WhirlpoolContext,
   WhirlpoolClient,
-  ORCA_WHIRLPOOL_PROGRAM_ID,
   PDAUtil,
   PriceMath,
   increaseLiquidityQuoteByInputTokenWithParams,
@@ -22,7 +20,6 @@ import {
   TransactionBuilder,
   resolveOrCreateATA,
 } from "@orca-so/common-sdk";
-import Decimal from "decimal.js";
 import { getPoolPubKey } from "./swap";
 import { CoinModel } from "./coinModel";
 import {
@@ -252,12 +249,15 @@ export async function getPositions(
 
   // Get data from Whirlpool position addresses
   const whirlpool_position_candidate_datas = await ctx.fetcher.getPositions(
-    whirlpool_position_candidate_pubkeys,
+    whirlpool_position_candidate_pubkeys.filter(
+      (_: PublicKey | undefined) => _ !== undefined
+    ) as PublicKey[],
     IGNORE_CACHE
   );
   // Leave only addresses with correct data acquisition as position addresses
   const whirlpool_positions = whirlpool_position_candidate_pubkeys.filter(
-    (pubkey, i) => whirlpool_position_candidate_datas[i] !== null
+    (_: PublicKey | undefined, i: number) =>
+      whirlpool_position_candidate_datas.get(i.toString()) !== null
   );
   console.log("whirlpool_positions:", whirlpool_positions);
   const positions_data: positionData[] = [];
@@ -270,6 +270,9 @@ export async function getPositions(
     try {
       const p = whirlpool_positions[i];
 
+      if (p === undefined) {
+        continue;
+      }
       // Get the status of the position
       const position = await client.getPosition(p);
       const data = position.getData();
@@ -278,23 +281,25 @@ export async function getPositions(
       const pool = await client.getPool(data.whirlpool);
       const token_a = pool.getTokenAInfo();
       const token_b = pool.getTokenBInfo();
-      const price = PriceMath.sqrtPriceX64ToPrice(
-        pool.getData().sqrtPrice,
-        token_a.decimals,
-        token_b.decimals
-      );
+      // not used
+      // const price = PriceMath.sqrtPriceX64ToPrice(
+      //   pool.getData().sqrtPrice,
+      //   token_a.decimals,
+      //   token_b.decimals
+      // );
 
-      // Get the price range of the position
-      const lower_price = PriceMath.tickIndexToPrice(
-        data.tickLowerIndex,
-        token_a.decimals,
-        token_b.decimals
-      );
-      const upper_price = PriceMath.tickIndexToPrice(
-        data.tickUpperIndex,
-        token_a.decimals,
-        token_b.decimals
-      );
+      // // Get the price range of the position
+      // const lower_price = PriceMath.tickIndexToPrice(
+      //   data.tickLowerIndex,
+      //   token_a.decimals,
+      //   token_b.decimals
+      // );
+
+      // const upper_price = PriceMath.tickIndexToPrice(
+      //   data.tickUpperIndex,
+      //   token_a.decimals,
+      //   token_b.decimals
+      // );
 
       // Calculate the amount of tokens that can be withdrawn from the position
       const amounts: TokenAmounts = PoolUtil.getTokenAmountsFromLiquidity(
@@ -401,7 +406,7 @@ export async function closePosition(
   // Get addresses of token accounts and get instructions to create if it does not exist
   const required_ta_ix: Instruction[] = [];
   const token_account_map = new Map<string, PublicKey>();
-  for (let mint_b58 of tokens_to_be_collected) {
+  for (const mint_b58 of tokens_to_be_collected) {
     const mint = new PublicKey(mint_b58);
     // If present, ix is EMPTY_INSTRUCTION
     const { address, ...ix } = await resolveOrCreateATA(

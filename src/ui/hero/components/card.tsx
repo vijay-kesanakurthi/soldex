@@ -16,6 +16,11 @@ import { SetupWhirlpool } from "../../../util/whirlpool_setup";
 import { getSwapQuote, swapTokens, getPoolPubKey } from "../../../util/swap";
 
 import { networkUrl, network } from "../../../util/constants";
+import {
+  SwapQuote,
+  WhirlpoolClient,
+  WhirlpoolContext,
+} from "@orca-so/whirlpools-sdk";
 
 const Card = () => {
   const [fromAsset, setFromAsset] = useState<CoinModel>(coins[0]);
@@ -27,9 +32,9 @@ const Card = () => {
   const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout>();
   const [loading, setLoading] = useState<boolean>(false);
   const [whirlpoolPublicKey, setWhirlpoolPublicKey] = useState<PublicKey>();
-  const [quote, setQuote] = useState<any>(null);
-  const [ctx, setCtx] = useState<any>(null);
-  const [client, setClient] = useState<any>(null);
+  const [quote, setQuote] = useState<SwapQuote | null>(null);
+  const [ctx, setCtx] = useState<WhirlpoolContext | null>(null);
+  const [client, setClient] = useState<WhirlpoolClient | null>(null);
 
   const connection = useMemo(() => new Connection(networkUrl, "confirmed"), []);
   const { publicKey } = useWallet();

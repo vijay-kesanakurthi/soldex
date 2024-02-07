@@ -6,11 +6,11 @@ import {
   ORCA_WHIRLPOOL_PROGRAM_ID,
   WhirlpoolClient,
 } from "@orca-so/whirlpools-sdk";
-import { Wallet } from "@coral-xyz/anchor";
+// import { Wallet } from "@coral-xyz/anchor";
 import { networkUrl } from "./constants";
 
 export const SetupWhirlpool = async (
-  wallet: Wallet
+  wallet: any
 ): Promise<{ ctx: WhirlpoolContext; client: WhirlpoolClient }> => {
   const connection = new Connection(networkUrl);
 

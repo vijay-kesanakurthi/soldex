@@ -1,6 +1,6 @@
 import { FC } from "react";
 import "./modal.scss";
-import { CoinModel } from "../hero/components/coins";
+import { CoinModel } from "../../util/coinModel";
 
 interface Model {
   closeHandler: () => void;
