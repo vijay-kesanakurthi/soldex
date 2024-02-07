@@ -18,11 +18,7 @@ const Navbar = () => {
       <nav className="h-20 w-full flexBetween fixed  top-0 bg-[#131a35] backdrop-blur-md nav text-white font-bold transition-all px-8 ">
         {" "}
         <a href="#hero">
-          <img
-            src="/logo.png"
-            className="h-20 filter drop-custon-shadow  "
-            alt=""
-          />
+          <img src="./logo1.jpg" className="h-20 " alt="" />
         </a>
         <WalletMultiButton className="bg-[#131a35]" />
         {/* <WalletConnectButton /> */}
